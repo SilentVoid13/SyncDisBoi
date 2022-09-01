@@ -1,0 +1,8 @@
+/target
+/tests
+/json
+/playlists
+/songs
+/results
+
+*.txt
