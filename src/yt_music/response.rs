@@ -1,21 +1,16 @@
 use crate::{
     music_api::{Album, Artist, Playlist, Playlists, Song, Songs},
-    yt_music::model::PlaylistResponse,
+    yt_music::model::YtMusicResponse,
 };
 
 use anyhow::{Context, Error, Result};
-use serde::Deserialize;
 
-impl TryFrom<serde_json::Value> for Playlists {
+impl TryInto<Playlists> for YtMusicResponse {
     type Error = Error;
 
-    fn try_from(json: serde_json::Value) -> Result<Self, Self::Error> {
-        let playlist_response = PlaylistResponse::deserialize(json)?;
-
-        // TODO: Check for continuations
-
+    fn try_into(mut self) -> Result<Playlists, Self::Error> {
         let mut playlists = vec![];
-        for mtrir in playlist_response
+        for mtrir in self
             .get_mtrirs()
             .context("Couldn't get response mtrirs")?
             .iter()
@@ -27,7 +22,7 @@ impl TryFrom<serde_json::Value> for Playlists {
             let playlist = Playlist {
                 id,
                 name,
-                songs: Option::None,
+                songs: None,
             };
             playlists.push(playlist);
         }
@@ -37,16 +32,19 @@ impl TryFrom<serde_json::Value> for Playlists {
     }
 }
 
-impl TryFrom<serde_json::Value> for Songs {
+impl TryInto<Songs> for YtMusicResponse {
     type Error = Error;
 
-    fn try_from(json: serde_json::Value) -> Result<Self, Self::Error> {
-        let playlist_response = PlaylistResponse::deserialize(json)?;
-
+    fn try_into(mut self) -> Result<Songs, Self::Error> {
         let mut songs_vec = vec![];
-        for mrlir in playlist_response
-            .get_mrlirs()
-            .context("Couldn't get response mrlirs")?
+
+        let mrlirs = match self.get_mrlirs() {
+            Some(x) => x,
+            // No songs in the playlist
+            None => return Ok(Songs(songs_vec))
+        };
+
+        for mrlir in mrlirs
             .iter()
             // Ignore unavailable songs
             .filter(|item| item.playlist_item_data.is_some())
@@ -79,7 +77,7 @@ impl TryFrom<serde_json::Value> for Songs {
             }
             let song = Song {
                 id,
-                set_id,
+                sid: Some(set_id),
                 name,
                 artists,
                 album,

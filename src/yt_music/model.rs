@@ -2,55 +2,122 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct PlaylistResponse {
-    pub contents: Contents,
+pub struct YtMusicResponse {
+    pub contents: ResponseContent,
 }
-impl PlaylistResponse {
-    pub fn get_mrlirs(&self) -> Option<Vec<&MusicResponsiveListItemRenderer>> {
+impl YtMusicResponse {
+    pub fn merge(&mut self, other: &mut YtMusicContinuationResponse) -> Option<()> {
+        if let Some(isrc) = self.get_item_section_renderer_content() {
+            Some(
+                isrc.grid_renderer.as_mut()?.items.append(
+                    &mut other
+                        .continuation_contents
+                        .grid_continuation
+                        .as_mut()?
+                        .items,
+                ),
+            )
+        } else if let Some(mpsr) = self.get_music_playlist_shelf_renderer() {
+            Some(
+                mpsr.contents.as_mut()?.append(
+                    other
+                        .continuation_contents
+                        .music_playlist_shelf_continuation
+                        .as_mut()?
+                        .contents
+                        .as_mut()?
+                ),
+            )
+        } else {
+            None
+        }
+    }
+
+    pub fn get_mrlirs(&mut self) -> Option<Vec<&MusicResponsiveListItemRenderer>> {
         Some(
-            self.get_section_list_contents().get(0)?
+            self.get_section_renderer_content()?
                 .music_playlist_shelf_renderer
                 .as_ref()?
                 .contents
+                .as_ref()?
                 .iter()
                 .map(|item| &item.music_responsive_list_item_renderer)
                 .collect(),
         )
     }
 
-    pub fn get_mtrirs(&self) -> Option<Vec<&MusicTwoRowItemRenderer>> {
+    pub fn get_mtrirs(&mut self) -> Option<Vec<&MusicTwoRowItemRenderer>> {
         Some(
-            self.get_section_list_contents()
-                .iter()
-                .find(|item| item.item_section_renderer.is_some())?
-                .item_section_renderer
+            self.get_item_section_renderer_content()?
+                .grid_renderer
                 .as_ref()?
-                .contents
+                .items
                 .iter()
-                .flat_map(|item| {
-                    item
-                        .grid_renderer
-                        .items
-                        .iter()
-                        .map(|item2| &item2.music_two_row_item_renderer)
-                        .collect::<Vec<&MusicTwoRowItemRenderer>>()
-                })
+                .map(|item2| &item2.music_two_row_item_renderer)
                 .collect(),
         )
     }
 
-    pub fn get_section_list_contents(&self) -> &Vec<Contents2> {
-        &self.contents.single_column_browse_results_renderer.tabs[0]
+    pub fn get_section_renderer_content(&mut self) -> Option<&mut SectionRendererContent> {
+        self.contents.single_column_browse_results_renderer.tabs[0]
             .tab_renderer
             .content
             .section_list_renderer
             .contents
+            .iter_mut()
+            .find(|item| {
+                item.music_playlist_shelf_renderer.is_some() || item.item_section_renderer.is_some()
+            })
     }
+
+    pub fn get_item_section_renderer_content(&mut self) -> Option<&mut ItemSectionRendererContent> {
+        Some(
+            &mut self
+                .get_section_renderer_content()?
+                .item_section_renderer
+                .as_mut()?
+                .contents[0],
+        )
+    }
+
+    pub fn get_music_playlist_shelf_renderer(&mut self) -> Option<&mut MusicPlaylistShelfRenderer> {
+        Some(
+            self.get_section_renderer_content()?
+                .music_playlist_shelf_renderer
+                .as_mut()?,
+        )
+    }
+
+    pub fn get_continuation(&mut self) -> Option<String> {
+        if let Some(isrc) = self.get_item_section_renderer_content() {
+            Some(isrc.grid_renderer.as_ref()?.continuations.as_ref()?[0].get_continuation())
+        } else if let Some(mpsr) = self.get_music_playlist_shelf_renderer() {
+            Some(mpsr.continuations.as_ref()?[0].get_continuation())
+        } else {
+            None
+        }
+    }
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentsVec<T> {
+    pub contents: Vec<T>,
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentsSingle<T> {
+    pub contents: [T; 1],
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct Contents {
+pub struct Content<T> {
+    pub content: T,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponseContent {
     pub single_column_browse_results_renderer: SingleColumnBrowseResultsRenderer,
 }
 #[derive(Deserialize, Debug)]
@@ -61,38 +128,34 @@ pub struct SingleColumnBrowseResultsRenderer {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Tab {
-    pub tab_renderer: TabRenderer,
+    pub tab_renderer: Content<TabRendererContent>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct TabRenderer {
-    pub content: Content1,
+pub struct TabRendererContent {
+    pub section_list_renderer: ContentsVec<SectionRendererContent>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct Content1 {
-    pub section_list_renderer: SectionListRenderer,
-}
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct SectionListRenderer {
-    pub contents: Vec<Contents2>,
-}
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Contents2 {
+pub struct SectionRendererContent {
     pub music_playlist_shelf_renderer: Option<MusicPlaylistShelfRenderer>,
-    pub item_section_renderer: Option<ItemSectionRenderer>,
+    pub item_section_renderer: Option<ContentsSingle<ItemSectionRendererContent>>,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MusicPlaylistShelfRenderer {
-    pub contents: Vec<Contents3>,
+    pub contents: Option<Vec<MusicPlaylistShelfRendererContent>>,
+    pub continuations: Option<[Continuation; 1]>,
+}
+impl MusicPlaylistShelfRenderer {
+    pub fn get_continuation(&self) -> Option<String> {
+        Some(self.continuations.as_ref()?[0].get_continuation())
+    }
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct Contents3 {
+pub struct MusicPlaylistShelfRendererContent {
     pub music_responsive_list_item_renderer: MusicResponsiveListItemRenderer,
 }
 #[derive(Deserialize, Debug)]
@@ -136,6 +199,7 @@ impl MusicResponsiveListItemRenderer {
         )
     }
 
+    #[allow(dead_code)]
     fn get_action(&self) -> Option<&Action> {
         Some(
             &self
@@ -157,18 +221,19 @@ impl MusicResponsiveListItemRenderer {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct ItemSectionRenderer {
-    pub contents: Vec<Contents4>,
-}
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Contents4 {
-    pub grid_renderer: GridRenderer,
+pub struct ItemSectionRendererContent {
+    pub grid_renderer: Option<GridRenderer>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GridRenderer {
     pub items: Vec<Item2>,
+    pub continuations: Option<[Continuation; 1]>,
+}
+impl GridRenderer {
+    pub fn get_continuation(&self) -> Option<String> {
+        Some(self.continuations.as_ref()?[0].get_continuation())
+    }
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -190,8 +255,21 @@ impl MusicTwoRowItemRenderer {
         Some(self.title.runs.as_ref()?.get(0)?.get_text())
     }
 }
-
-
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Continuation {
+    pub next_continuation_data: NextContinuationData,
+}
+impl Continuation {
+    pub fn get_continuation(&self) -> String {
+        return self.next_continuation_data.continuation.clone();
+    }
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct NextContinuationData {
+    pub continuation: String,
+}
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -282,16 +360,11 @@ pub struct Action {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Overlay {
-    pub music_item_thumbnail_overlay_renderer: MusicItemThumbnailOverlayRenderer,
+    pub music_item_thumbnail_overlay_renderer: Content<MusicItemThumbnailOverlayRendererContent>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct MusicItemThumbnailOverlayRenderer {
-    pub content: Content2,
-}
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Content2 {
+pub struct MusicItemThumbnailOverlayRendererContent {
     pub music_play_button_renderer: MusicPlayButtonRenderer,
 }
 #[derive(Deserialize, Debug)]
@@ -316,4 +389,25 @@ pub struct WatchEndpoint {
 pub struct PlaylistItemData {
     pub playlist_set_video_id: String,
     pub video_id: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct YtMusicContinuationResponse {
+    pub continuation_contents: ContinuationContents,
+}
+impl YtMusicContinuationResponse {
+    pub fn get_continuation(&self) -> Option<String> {
+        if let Some(g) = &self.continuation_contents.grid_continuation {
+            g.get_continuation()
+        } else if let Some(m) = &self.continuation_contents.music_playlist_shelf_continuation {
+            m.get_continuation()
+        } else { None }
+    }
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ContinuationContents {
+    pub grid_continuation: Option<GridRenderer>,
+    pub music_playlist_shelf_continuation: Option<MusicPlaylistShelfRenderer>,
 }

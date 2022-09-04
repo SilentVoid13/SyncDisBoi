@@ -1,15 +1,21 @@
-mod response;
 pub mod model;
+mod response;
 
-use crate::music_api::{MusicApi, Playlists, Playlist, Song, Songs};
+use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs};
 
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::header::HeaderMap;
-use sha1::{Sha1, Digest};
-use std::time::{SystemTime, UNIX_EPOCH};
-use anyhow::Result;
+use serde::de::DeserializeOwned;
 use serde_json::json;
-use futures::future::try_join_all;
+use sha1::{Digest, Sha1};
+use std::fmt::Write;
+use std::{
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use self::model::{YtMusicContinuationResponse, YtMusicResponse};
 
 pub struct YtMusicApi {
     client: reqwest::Client,
@@ -18,14 +24,13 @@ pub struct YtMusicApi {
 
 impl YtMusicApi {
     const BASE_API: &'static str = "https://music.youtube.com/youtubei/v1/";
-    const BASE_PARAMS: &'static str = "?alt=json&prettyPrint=false&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
+    const BASE_PARAMS: &'static str =
+        "?alt=json&prettyPrint=false&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
 
-    pub fn new() -> Self {
+    pub fn new(cookies: &PathBuf, secret: &str) -> Result<Self> {
         let origin = "https://music.youtube.com";
-        // TODO: remove this
-        let cookies = include_str!("../../cookies.txt");
-        // TODO: remove this
-        let authorization = include_str!("../../auth.txt");
+        let cookies = std::fs::read_to_string(cookies)?;
+
         // TODO: find a way to create constant dyn value without putting it into the struct
         let context: serde_json::Value = json!({
             "client": {
@@ -37,22 +42,26 @@ impl YtMusicApi {
         });
 
         let mut headers = HeaderMap::new();
-        headers.insert("accept", "*/*".parse().unwrap());
-        headers.insert("content-type",  "application/json; charset=UTF-8".parse().unwrap());
-        headers.insert("authorization", authorization.parse().unwrap());
-        headers.insert("cookie", cookies.parse().unwrap());
-        headers.insert("origin",  origin.parse().unwrap());
-        headers.insert("user-agent",  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.102 Safari/537.36".parse().unwrap());
-        headers.insert("x-goog-authuser", "0".parse().unwrap());
-        headers.insert("x-goog-pageid", "100654875389698742898".parse().unwrap());
-        headers.insert("x-goog-visitor-id", "CgtzUXZMenhNbFR4MCiI0rmYBg%3D%3D".parse().unwrap());
+        headers.insert("accept", "*/*".parse()?);
+        headers.insert("content-type", "application/json; charset=UTF-8".parse()?);
+        headers.insert("authorization", secret.parse()?);
+        headers.insert("cookie", cookies.parse()?);
+        headers.insert("origin", origin.parse()?);
+        headers.insert("user-agent",  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.102 Safari/537.36".parse()?);
+        headers.insert("x-goog-authuser", "0".parse()?);
+        headers.insert("x-goog-pageid", "100654875389698742898".parse()?);
+        headers.insert(
+            "x-goog-visitor-id",
+            "CgtzUXZMenhNbFR4MCiI0rmYBg%3D%3D".parse()?,
+        );
 
         let client = reqwest::ClientBuilder::new()
             .cookie_store(true)
             .default_headers(headers)
-            .build().unwrap();
+            .build()
+            .unwrap();
 
-        YtMusicApi {client, context}
+        Ok(YtMusicApi { client, context })
     }
 
     pub fn get_authorization_hash(&self, sapisid: &str, origin: &str) -> String {
@@ -71,8 +80,17 @@ impl YtMusicApi {
         return authorization;
     }
 
-    fn build_endpoint(&self, path: &str) -> String {
-        format!("{}{}{}", YtMusicApi::BASE_API, path, YtMusicApi::BASE_PARAMS)
+    fn build_endpoint(&self, path: &str, ctoken: Option<&str>) -> String {
+        let mut endpoint = format!(
+            "{}{}{}",
+            YtMusicApi::BASE_API,
+            path,
+            YtMusicApi::BASE_PARAMS,
+        );
+        if let Some(c) = ctoken {
+            std::write!(&mut endpoint, "&ctoken={c}&continuation={c}", c = c).unwrap();
+        }
+        endpoint
     }
 
     fn build_body(&self, browse_id: &str) -> serde_json::Value {
@@ -83,16 +101,33 @@ impl YtMusicApi {
         return body;
     }
 
-    async fn make_request(&self, path: &str, browse_id: &str) -> Result<serde_json::Value> {
-        let endpoint = self.build_endpoint(path);
+    async fn paginated_request(&self, path: &str, browse_id: &str) -> Result<YtMusicResponse> {
+        let mut response: YtMusicResponse = self.make_request(path, browse_id, None).await?;
+        let mut continuation = response.get_continuation();
+
+        while let Some(cont) = continuation {
+            let mut response2: YtMusicContinuationResponse = self
+                .make_request(path, browse_id, Some(&cont))
+                .await?;
+            response.merge(&mut response2);
+            continuation = response2.get_continuation();
+        }
+        Ok(response)
+    }
+
+    async fn make_request<T>(&self, path: &str, browse_id: &str, ctoken: Option<&str>) -> Result<T>
+    where
+        T: DeserializeOwned + std::fmt::Debug,
+    {
+        let endpoint = self.build_endpoint(path, ctoken);
         let body_json = self.build_body(browse_id);
 
-        let res = self.client.post(endpoint)
-            .json(&body_json)
-            .send().await?;
+        let res = self.client.post(endpoint).json(&body_json).send().await?;
         let text = res.text().await?;
-        let json = serde_json::from_str(&text)?;
-        Ok(json)
+        std::fs::write("data.json", &text).unwrap();
+        //let obj = res.json().await?;
+        let obj = serde_json::from_str(&text)?;
+        Ok(obj)
     }
 }
 
@@ -104,7 +139,8 @@ impl MusicApi for YtMusicApi {
 
     async fn get_playlists_info(&self) -> Result<Vec<Playlist>> {
         let browse_id = "FEmusic_liked_playlists";
-        let response = self.make_request("browse", browse_id).await?;
+        // TODO: Find a way to impl Deserialize for Playlists to avoid the .try_into
+        let response = self.paginated_request("browse", browse_id).await?;
         let playlists: Playlists = response.try_into()?;
         Ok(playlists.0)
     }
@@ -115,23 +151,9 @@ impl MusicApi for YtMusicApi {
         } else {
             format!("VL{}", id)
         };
-        let response = self.make_request("browse", &browse_id).await?;
+        // TODO: Find a way to impl Deserialize for Songs to avoid the .try_into
+        let response = self.paginated_request("browse", &browse_id).await?;
         let songs: Songs = response.try_into()?;
         Ok(songs.0)
-    }
-
-    async fn get_playlists_full(&self) -> Result<Vec<Playlist>> {
-        let mut playlists = self.get_playlists_info().await?;
-
-        let mut requests = vec![];
-        for playlist in playlists.iter_mut() {
-            requests.push(self.get_playlist_songs(&playlist.id));
-        }
-        let results = try_join_all(requests).await?;
-        for (i, songs) in results.into_iter().enumerate() {
-            playlists[i].songs = Some(Songs(songs));
-        }
-
-        Ok(playlists)
     }
 }
