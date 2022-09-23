@@ -4,20 +4,27 @@ use crate::music_api::{Artist, Playlist, Song, Album, Songs, Playlists};
 
 use super::model::{SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySongItemResponse};
 
+impl TryInto<Playlist> for SpotifyPlaylistResponse {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Playlist, Self::Error> {
+        Ok(Playlist {
+            id: self.id,
+            name: self.name,
+            songs: None,
+        })
+    }
+}
+
 impl TryInto<Playlists> for SpotifyPageResponse<SpotifyPlaylistResponse> {
     type Error = Error;
 
     fn try_into(self) -> Result<Playlists, Self::Error> {
-        Ok(Playlists(
-            self.items
-                .into_iter()
-                .map(|item| Playlist {
-                    id: item.id,
-                    name: item.name,
-                    songs: None,
-                })
-                .collect(),
-        ))
+        let mut playlists = vec![];
+        for item in self.items.into_iter() {
+            playlists.push(item.try_into()?)
+        }
+        Ok(Playlists(playlists))
     }
 }
 

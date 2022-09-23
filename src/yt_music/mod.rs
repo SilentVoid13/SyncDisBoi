@@ -1,7 +1,7 @@
 pub mod model;
 mod response;
 
-use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs};
+use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -93,21 +93,24 @@ impl YtMusicApi {
         endpoint
     }
 
-    fn build_body(&self, browse_id: &str) -> serde_json::Value {
+    fn build_body(&self, value: &serde_json::Value) -> serde_json::Value {
+        // TODO: find out how to merge
+        /*
         let body = json!({
-            "browseId": browse_id,
+            ...value,
             "context": self.context,
         });
-        return body;
+        */
+        return json!({});
     }
 
-    async fn paginated_request(&self, path: &str, browse_id: &str) -> Result<YtMusicResponse> {
-        let mut response: YtMusicResponse = self.make_request(path, browse_id, None).await?;
+    async fn paginated_request(&self, path: &str, body: &serde_json::Value) -> Result<YtMusicResponse> {
+        let mut response: YtMusicResponse = self.make_request(path, body, None).await?;
         let mut continuation = response.get_continuation();
 
         while let Some(cont) = continuation {
             let mut response2: YtMusicContinuationResponse = self
-                .make_request(path, browse_id, Some(&cont))
+                .make_request(path, body, Some(&cont))
                 .await?;
             response.merge(&mut response2);
             continuation = response2.get_continuation();
@@ -115,14 +118,14 @@ impl YtMusicApi {
         Ok(response)
     }
 
-    async fn make_request<T>(&self, path: &str, browse_id: &str, ctoken: Option<&str>) -> Result<T>
+    async fn make_request<T>(&self, path: &str, body: &serde_json::Value, ctoken: Option<&str>) -> Result<T>
     where
         T: DeserializeOwned + std::fmt::Debug,
     {
         let endpoint = self.build_endpoint(path, ctoken);
-        let body_json = self.build_body(browse_id);
 
-        let res = self.client.post(endpoint).json(&body_json).send().await?;
+        let res = self.client.post(endpoint).json(body).send().await?;
+        // TODO: remove this
         let text = res.text().await?;
         std::fs::write("data.json", &text).unwrap();
         //let obj = res.json().await?;
@@ -133,14 +136,24 @@ impl YtMusicApi {
 
 #[async_trait]
 impl MusicApi for YtMusicApi {
-    async fn create_playlist(&self) {
-        todo!();
+    async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist> {
+        let privacy_status = match public {
+            true => "PUBLIC",
+            false => "PRIVATE"
+        };
+        let body = json!({
+            "title": name,
+            "description": PLAYLIST_DESC,
+            "privacyStatus": privacy_status,
+        });
+        let res = self.make_request("playlist/create", body, ctoken)
     }
 
     async fn get_playlists_info(&self) -> Result<Vec<Playlist>> {
         let browse_id = "FEmusic_liked_playlists";
+        let body = self.build_body(browse_id);
         // TODO: Find a way to impl Deserialize for Playlists to avoid the .try_into
-        let response = self.paginated_request("browse", browse_id).await?;
+        let response = self.paginated_request("browse", &body).await?;
         let playlists: Playlists = response.try_into()?;
         Ok(playlists.0)
     }
@@ -151,8 +164,9 @@ impl MusicApi for YtMusicApi {
         } else {
             format!("VL{}", id)
         };
+        let body = self.build_body(&browse_id);
         // TODO: Find a way to impl Deserialize for Songs to avoid the .try_into
-        let response = self.paginated_request("browse", &browse_id).await?;
+        let response = self.paginated_request("browse", &body).await?;
         let songs: Songs = response.try_into()?;
         Ok(songs.0)
     }

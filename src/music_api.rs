@@ -4,6 +4,8 @@ use async_trait::async_trait;
 use futures::future::try_join_all;
 use serde::Serialize;
 
+pub const PLAYLIST_DESC: &'static str = "Playlist created by SyncDisBoy";
+
 pub enum MusicApiType {
     Spotify,
     YoutubeMusic,
@@ -11,7 +13,7 @@ pub enum MusicApiType {
 
 #[async_trait]
 pub trait MusicApi {
-    async fn create_playlist(&self);
+    async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist>;
     async fn get_playlists_info(&self) -> Result<Vec<Playlist>>;
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>>;
 
@@ -29,6 +31,9 @@ pub trait MusicApi {
 
         Ok(playlists)
     }
+
+    //async fn add_song_to_playlist(&self) -> Result<Vec<Playlist>> {
+    //async fn remove_song_from_playlist(&self) -> Result<Vec<Playlist>> {
 }
 
 #[derive(Serialize, Debug)]
