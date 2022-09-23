@@ -411,3 +411,21 @@ pub struct ContinuationContents {
     pub grid_continuation: Option<GridRenderer>,
     pub music_playlist_shelf_continuation: Option<MusicPlaylistShelfRenderer>,
 }
+
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct YtMusicPlaylistCreateResponse {
+    pub playlist_id: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct YtMusicPlaylistStatusResponse {
+    pub status: String,
+}
+impl YtMusicPlaylistStatusResponse {
+    pub fn success(&self) -> bool {
+        self.status == "STATUS_SUCCEEDED"
+    }
+}

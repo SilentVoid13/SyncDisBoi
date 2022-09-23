@@ -2,11 +2,11 @@ mod model;
 mod response;
 
 use crate::music_api::MusicApi;
-use crate::music_api::PLAYLIST_DESC;
 use crate::music_api::Playlist;
 use crate::music_api::Playlists;
 use crate::music_api::Song;
 use crate::music_api::Songs;
+use crate::music_api::PLAYLIST_DESC;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -110,31 +110,41 @@ impl SpotifyApi {
     }
 
     fn build_endpoint(&self, path: &str, limit: u32, offset: u32) -> String {
-        format!("{}{}?limit={}&offset={}", SpotifyApi::BASE_API, path, limit, offset)
+        format!(
+            "{}{}?limit={}&offset={}",
+            SpotifyApi::BASE_API,
+            path,
+            limit,
+            offset
+        )
     }
 
-    async fn paginated_request<T>(
-        &self,
-        path: &str,
-        limit: u32,
-    ) -> Result<SpotifyPageResponse<T>>
+    async fn paginated_request<T>(&self, path: &str, limit: u32) -> Result<SpotifyPageResponse<T>>
     where
         T: DeserializeOwned,
     {
         let mut offset = 0;
-        let mut response: SpotifyPageResponse<T> = self.make_request(path, limit, offset, None).await?;
+        let mut response: SpotifyPageResponse<T> =
+            self.make_request(path, limit, offset, None).await?;
         let mut total = response.total;
 
         while offset < total {
             offset += limit;
-            let mut response2: SpotifyPageResponse<T> = self.make_request(path, limit, offset, None).await?;
+            let mut response2: SpotifyPageResponse<T> =
+                self.make_request(path, limit, offset, None).await?;
             total = response2.total;
             response.merge(&mut response2);
         }
         Ok(response)
     }
 
-    async fn make_request<T>(&self, path: &str, limit: u32, offset: u32, body: Option<serde_json::Value>) -> Result<T>
+    async fn make_request<T>(
+        &self,
+        path: &str,
+        limit: u32,
+        offset: u32,
+        body: Option<serde_json::Value>,
+    ) -> Result<T>
     where
         T: DeserializeOwned,
     {
@@ -145,10 +155,10 @@ impl SpotifyApi {
         };
         // TODO: change this
         let text = res.text().await?;
-        println!("{:?}", text);
-        let json = serde_json::from_str(&text)?;
+        std::fs::write("data.json", &text).unwrap();
+        let obj = serde_json::from_str(&text)?;
         //let json = res.json().await?;
-        Ok(json)
+        Ok(obj)
     }
 }
 
@@ -180,5 +190,32 @@ impl MusicApi for SpotifyApi {
             self.paginated_request(&path, 50).await?;
         let songs: Songs = res.try_into()?;
         Ok(songs.0)
+    }
+
+    async fn add_songs_to_playlist<'a>(
+        &self,
+        playlist: &mut Playlist,
+        songs_ids: &[&'a str],
+    ) -> Result<()> {
+        let uris: Vec<String> = songs_ids
+            .iter()
+            .map(|id| format!("spotify:track:{}", id))
+            .collect();
+        let path = format!("/playlists/{}/tracks", playlist.id);
+        let body = json!({
+            "uris": uris,
+        });
+        println!("BODY: {:?}", body);
+        self.make_request(&path, 50, 0, Some(body)).await?;
+        // TODO: add Song object to Playlist
+        Ok(())
+    }
+
+    async fn remove_songs_from_playlist<'a>(
+        &self,
+        playlist: &mut Playlist,
+        songs_ids: &[&'a str],
+    ) -> Result<()> {
+        todo!();
     }
 }

@@ -12,11 +12,12 @@ async fn main() -> Result<()> {
     let args = args::Args::parse();
     println!("{:?}", args);
 
-    //let music_api: Box<dyn MusicApi> = YtMusicApi::new(&args.yt_music_cookies, &args.yt_music_secret)?;
-    let music_api: Box<dyn MusicApi> = SpotifyApi::new(&args.spotify_client_id, &args.spotify_client_secret).await?;
+    let music_api: YtMusicApi = YtMusicApi::new(&args.yt_music_cookies, &args.yt_music_secret)?;
+    //let music_api: SpotifyApi = SpotifyApi::new(&args.spotify_client_id, &args.spotify_client_secret).await?;
 
-    let playlist = music_api.create_playlist("Testy", false).await?;
+    let mut playlist = music_api.create_playlist("Testy", false).await?;
     println!("{:?}", playlist);
+    music_api.add_songs_to_playlist(&mut playlist, &["s_jEID5s9nE"]).await?;
 
     //let playlists = music_api.get_playlists_info().await?;
     //let playlists = music_api.get_playlists_full().await?;

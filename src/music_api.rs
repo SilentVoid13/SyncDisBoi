@@ -32,8 +32,8 @@ pub trait MusicApi {
         Ok(playlists)
     }
 
-    //async fn add_song_to_playlist(&self) -> Result<Vec<Playlist>> {
-    //async fn remove_song_from_playlist(&self) -> Result<Vec<Playlist>> {
+    async fn add_songs_to_playlist<'a>(&self, playlist: &mut Playlist, songs_ids: &[&'a str]) -> Result<()>;
+    async fn remove_songs_from_playlist<'a>(&self, playlist: &mut Playlist, songs_ids: &[&'a str]) -> Result<()>;
 }
 
 #[derive(Serialize, Debug)]
