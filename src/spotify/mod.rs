@@ -7,6 +7,8 @@ use crate::music_api::Playlists;
 use crate::music_api::Song;
 use crate::music_api::Songs;
 use crate::music_api::PLAYLIST_DESC;
+use crate::spotify::model::SpotifySearchResponse;
+use crate::utils::clean_quotes;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -18,6 +20,7 @@ use tokio::net::TcpListener;
 
 use self::model::SpotifyPageResponse;
 use self::model::SpotifyPlaylistResponse;
+use self::model::SpotifySnapshotResponse;
 use self::model::SpotifySongItemResponse;
 use self::model::SpotifyToken;
 
@@ -109,29 +112,30 @@ impl SpotifyApi {
         Ok(auth_code)
     }
 
-    fn build_endpoint(&self, path: &str, limit: u32, offset: u32) -> String {
-        format!(
-            "{}{}?limit={}&offset={}",
-            SpotifyApi::BASE_API,
-            path,
-            limit,
-            offset
-        )
+    fn build_endpoint(&self, path: &str) -> String {
+        format!("{}{}", SpotifyApi::BASE_API, path,)
     }
 
-    async fn paginated_request<T>(&self, path: &str, limit: u32) -> Result<SpotifyPageResponse<T>>
+    async fn paginated_request<T>(
+        &self,
+        path: &str,
+        get_params: Option<&[(&str, &str)]>,
+        limit: u32,
+    ) -> Result<SpotifyPageResponse<T>>
     where
         T: DeserializeOwned,
     {
         let mut offset = 0;
-        let mut response: SpotifyPageResponse<T> =
-            self.make_request(path, limit, offset, None).await?;
+        let mut response: SpotifyPageResponse<T> = self
+            .make_request(path, get_params, None, limit, offset)
+            .await?;
         let mut total = response.total;
 
         while offset < total {
             offset += limit;
-            let mut response2: SpotifyPageResponse<T> =
-                self.make_request(path, limit, offset, None).await?;
+            let mut response2: SpotifyPageResponse<T> = self
+                .make_request(path, get_params, None, limit, offset)
+                .await?;
             total = response2.total;
             response.merge(&mut response2);
         }
@@ -141,18 +145,24 @@ impl SpotifyApi {
     async fn make_request<T>(
         &self,
         path: &str,
+        get_params: Option<&[(&str, &str)]>,
+        body: Option<serde_json::Value>,
         limit: u32,
         offset: u32,
-        body: Option<serde_json::Value>,
     ) -> Result<T>
     where
         T: DeserializeOwned,
     {
-        let endpoint = self.build_endpoint(path, limit, offset);
-        let res = match body {
-            Some(b) => self.client.post(endpoint).json(&b).send().await?,
-            None => self.client.get(endpoint).send().await?,
+        let endpoint = self.build_endpoint(path);
+        let mut request = match body {
+            Some(b) => self.client.post(endpoint).json(&b),
+            None => self.client.get(endpoint),
         };
+        request = request.query(&[("limit", limit), ("offset", offset)]);
+        if let Some(p) = get_params {
+            request = request.query(p);
+        }
+        let res = request.send().await?;
         // TODO: change this
         let text = res.text().await?;
         std::fs::write("data.json", &text).unwrap();
@@ -171,7 +181,8 @@ impl MusicApi for SpotifyApi {
             "public": public,
             "description": PLAYLIST_DESC,
         });
-        let res: SpotifyPlaylistResponse = self.make_request(&path, 50, 0, Some(body)).await?;
+        let res: SpotifyPlaylistResponse =
+            self.make_request(&path, None, Some(body), 50, 0).await?;
         let playlist: Playlist = res.try_into()?;
         Ok(playlist)
     }
@@ -179,7 +190,7 @@ impl MusicApi for SpotifyApi {
     async fn get_playlists_info(&self) -> Result<Vec<Playlist>> {
         let path = "/me/playlists";
         let res: SpotifyPageResponse<SpotifyPlaylistResponse> =
-            self.paginated_request(&path, 50).await?;
+            self.paginated_request(&path, None, 50).await?;
         let playlists: Playlists = res.try_into()?;
         Ok(playlists.0)
     }
@@ -187,27 +198,30 @@ impl MusicApi for SpotifyApi {
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>> {
         let path = format!("/playlists/{}/tracks", id);
         let res: SpotifyPageResponse<SpotifySongItemResponse> =
-            self.paginated_request(&path, 50).await?;
+            self.paginated_request(&path, None, 50).await?;
         let songs: Songs = res.try_into()?;
         Ok(songs.0)
     }
 
-    async fn add_songs_to_playlist<'a>(
+    async fn add_songs_to_playlist<T>(
         &self,
-        playlist: &mut Playlist,
-        songs_ids: &[&'a str],
-    ) -> Result<()> {
+        playlist_id: &str,
+        songs_ids: &[T],
+    ) -> Result<()>
+    where
+        T: AsRef<str> + Sync,
+    {
+        // TODO: add Song object to Playlist
+
         let uris: Vec<String> = songs_ids
             .iter()
-            .map(|id| format!("spotify:track:{}", id))
+            .map(|id| format!("spotify:track:{}", id.as_ref()))
             .collect();
-        let path = format!("/playlists/{}/tracks", playlist.id);
+        let path = format!("/playlists/{}/tracks", playlist_id);
         let body = json!({
             "uris": uris,
         });
-        println!("BODY: {:?}", body);
-        self.make_request(&path, 50, 0, Some(body)).await?;
-        // TODO: add Song object to Playlist
+        let _: SpotifySnapshotResponse = self.make_request(&path, None, Some(body), 50, 0).await?;
         Ok(())
     }
 
@@ -217,5 +231,41 @@ impl MusicApi for SpotifyApi {
         songs_ids: &[&'a str],
     ) -> Result<()> {
         todo!();
+    }
+
+    async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
+        // Spotify doesn't support quotes in search
+
+        let path = "/search";
+        let mut vec_query = vec![];
+        let track = format!("track:{}", clean_quotes(&song.clean_name));
+        vec_query.push(track);
+        let artists: Vec<String> = song.artists.iter().map(|a| clean_quotes(&a.name)).collect();
+        let artists = format!("artist:{}", artists.join(", "));
+        vec_query.push(artists);
+        if let Some(album) = &song.album {
+            // Otherwise it might be a single
+            if album.name != song.name {
+                let album = format!("album:{}", clean_quotes(&album.name));
+                // TODO: fix this
+                // "q" parameter is limited at ~100 chars
+                if vec_query.join(",").len() + album.len() < 100 {
+                    vec_query.push(album)
+                }
+            }
+        }
+        let query = vec_query.join(" ");
+
+        let get_params = [("type", "track"), ("q", &query)];
+        let res: SpotifySearchResponse = self
+            .make_request(&path, Some(&get_params), None, 50, 0)
+            .await?;
+        let mut songs: Songs = res.try_into()?;
+        if songs.0.is_empty() {
+            println!("QUERY: {}", query);
+            Ok(None)
+        } else {
+            Ok(Some(songs.0.remove(0)))
+        }
     }
 }

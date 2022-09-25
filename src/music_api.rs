@@ -32,8 +32,10 @@ pub trait MusicApi {
         Ok(playlists)
     }
 
-    async fn add_songs_to_playlist<'a>(&self, playlist: &mut Playlist, songs_ids: &[&'a str]) -> Result<()>;
+    async fn add_songs_to_playlist<T: AsRef<str> + Sync>(&self, playlist_id: &str, songs_ids: &[T]) -> Result<()>;
     async fn remove_songs_from_playlist<'a>(&self, playlist: &mut Playlist, songs_ids: &[&'a str]) -> Result<()>;
+
+    async fn search_song(&self, song: &Song) -> Result<Option<Song>>;
 }
 
 #[derive(Serialize, Debug)]
@@ -55,6 +57,7 @@ pub struct Song {
     pub id: String,
     pub sid: Option<String>,
     pub name: String,
+    pub clean_name: String,
     pub album: Option<Album>,
     pub artists: Vec<Artist>,
 }

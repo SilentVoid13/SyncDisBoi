@@ -16,6 +16,16 @@ pub struct SpotifyUser {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct SpotifySnapshotResponse {
+    pub snapshot_id: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SpotifySearchResponse {
+    pub tracks: SpotifyPageResponse<SpotifySongResponse>,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct SpotifyPageResponse<T> {
     pub items: Vec<T>,
     pub total: u32,

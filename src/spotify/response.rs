@@ -1,8 +1,50 @@
+use std::convert::TryInto;
+
 use anyhow::{Error, Result};
 
-use crate::music_api::{Artist, Playlist, Song, Album, Songs, Playlists};
+use crate::{music_api::{Album, Artist, Playlist, Playlists, Song, Songs}, utils::clean_song_name};
 
-use super::model::{SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySongItemResponse};
+use super::model::{
+    SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySongItemResponse, SpotifySongResponse, SpotifySearchResponse,
+};
+
+impl TryInto<Songs> for SpotifySearchResponse {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Songs, Self::Error> {
+        self.tracks.try_into()
+    }
+}
+
+impl<T> TryInto<Playlists> for SpotifyPageResponse<T>
+where
+    T: TryInto<Playlist, Error=Error>,
+{
+    type Error = Error;
+
+    fn try_into(self) -> Result<Playlists, Self::Error> {
+        let mut res = vec![];
+        for item in self.items.into_iter() {
+            res.push(item.try_into()?);
+        }
+        Ok(Playlists(res))
+    }
+}
+
+impl<T> TryInto<Songs> for SpotifyPageResponse<T>
+where
+    T: TryInto<Song, Error=Error>,
+{
+    type Error = Error;
+
+    fn try_into(self) -> Result<Songs, Self::Error> {
+        let mut res = vec![];
+        for item in self.items.into_iter() {
+            res.push(item.try_into()?);
+        }
+        Ok(Songs(res))
+    }
+}
 
 impl TryInto<Playlist> for SpotifyPlaylistResponse {
     type Error = Error;
@@ -16,48 +58,37 @@ impl TryInto<Playlist> for SpotifyPlaylistResponse {
     }
 }
 
-impl TryInto<Playlists> for SpotifyPageResponse<SpotifyPlaylistResponse> {
+impl TryInto<Song> for SpotifySongItemResponse {
     type Error = Error;
 
-    fn try_into(self) -> Result<Playlists, Self::Error> {
-        let mut playlists = vec![];
-        for item in self.items.into_iter() {
-            playlists.push(item.try_into()?)
-        }
-        Ok(Playlists(playlists))
+    fn try_into(self) -> Result<Song, Self::Error> {
+        self.track.try_into()
     }
 }
 
-impl TryInto<Songs> for SpotifyPageResponse<SpotifySongItemResponse> {
+impl TryInto<Song> for SpotifySongResponse {
     type Error = Error;
 
-    fn try_into(self) -> Result<Songs, Self::Error> {
-        Ok(Songs(
-            self.items
-                .into_iter()
-                .map(|item| {
-                    let artists = item
-                        .track
-                        .artists
-                        .into_iter()
-                        .map(|i| Artist {
-                            id: Some(i.id),
-                            name: i.name,
-                        })
-                        .collect();
-                    let album = Album {
-                        id: Some(item.track.album.id),
-                        name: item.track.album.name,
-                    };
-                    Song {
-                        id: item.track.id,
-                        name: item.track.name,
-                        sid: None,
-                        album: Some(album),
-                        artists,
-                    }
-                })
-                .collect(),
-        ))
+    fn try_into(self) -> Result<Song, Self::Error> {
+        let artists = self
+            .artists
+            .into_iter()
+            .map(|i| Artist {
+                id: Some(i.id),
+                name: i.name,
+            })
+            .collect();
+        let album = Album {
+            id: Some(self.album.id),
+            name: self.album.name,
+        };
+        Ok(Song {
+            id: self.id,
+            clean_name: clean_song_name(&self.name),
+            name: self.name,
+            sid: None,
+            album: Some(album),
+            artists,
+        })
     }
 }

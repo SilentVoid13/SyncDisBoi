@@ -1,6 +1,6 @@
 use crate::{
     music_api::{Album, Artist, Playlist, Playlists, Song, Songs},
-    yt_music::model::YtMusicResponse,
+    yt_music::model::YtMusicResponse, utils::clean_song_name,
 };
 
 use anyhow::{Context, Error, Result};
@@ -78,6 +78,7 @@ impl TryInto<Songs> for YtMusicResponse {
             let song = Song {
                 id,
                 sid: Some(set_id),
+                clean_name: clean_song_name(&name),
                 name,
                 artists,
                 album,

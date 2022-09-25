@@ -185,21 +185,24 @@ impl MusicApi for YtMusicApi {
         Ok(songs.0)
     }
 
-    async fn add_songs_to_playlist<'a>(
+    async fn add_songs_to_playlist<T>(
         &self,
-        playlist: &mut Playlist,
-        songs_ids: &[&'a str],
-    ) -> Result<()> {
+        playlist_id: &str,
+        songs_ids: &[T],
+    ) -> Result<()>
+    where
+        T: AsRef<str> + Sync,
+    {
         let mut actions = vec![];
         for song_id in songs_ids.iter() {
             let action = json!({
                 "action": "ACTION_ADD_VIDEO",
-                "addedVideoId": song_id,
+                "addedVideoId": song_id.as_ref(),
             });
             actions.push(action);
         }
         let body = json!({
-            "playlistId": playlist.id,
+            "playlistId": playlist_id,
             "actions": actions,
         });
         let response: YtMusicPlaylistStatusResponse = self
@@ -216,6 +219,10 @@ impl MusicApi for YtMusicApi {
         playlist: &mut Playlist,
         songs_ids: &[&'a str],
     ) -> Result<()> {
+        todo!();
+    }
+
+    async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
         todo!();
     }
 }
