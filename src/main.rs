@@ -3,7 +3,7 @@ mod args;
 use sync_dis_boy::music_api::{MusicApi, Song, Album, Artist};
 use sync_dis_boy::spotify::SpotifyApi;
 use sync_dis_boy::sync::synchronize;
-use sync_dis_boy::utils::{clean_song_name, clean_quotes};
+use sync_dis_boy::utils::{clean_song_name, clean_bad_chars_spotify};
 use sync_dis_boy::yt_music::YtMusicApi;
 
 use anyhow::Result;

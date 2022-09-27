@@ -164,6 +164,7 @@ pub struct MusicResponsiveListItemRenderer {
     pub menu: Option<Menu>,
     pub overlay: Option<Overlay>,
     pub flex_columns: [FlexColumn; 3],
+    pub fixed_columns: Option<Vec<FixedColumn>>,
     pub playlist_item_data: Option<PlaylistItemData>,
 }
 impl MusicResponsiveListItemRenderer {
@@ -180,19 +181,22 @@ impl MusicResponsiveListItemRenderer {
         Some(self.playlist_item_data.as_ref()?.video_id.clone())
     }
 
-    pub fn get_flex_run_text(&self, flex_i: usize, run_i: usize) -> Option<String> {
-        Some(self.get_flex_runs(flex_i)?.get(run_i)?.get_text())
+    pub fn get_col_run_text(&self, idx: usize, run_i: usize, flex: bool) -> Option<String> {
+        Some(self.get_col_runs(idx, flex)?.get(run_i)?.get_text())
     }
 
-    pub fn get_flex_run_id(&self, flex_i: usize, run_i: usize) -> Option<String> {
-        Some(self.get_flex_runs(flex_i)?.get(run_i)?.get_id()?)
+    pub fn get_col_run_id(&self, idx: usize, run_i: usize, flex: bool) -> Option<String> {
+        Some(self.get_col_runs(idx, flex)?.get(run_i)?.get_id()?)
     }
 
-    pub fn get_flex_runs(&self, flex_i: usize) -> Option<&Vec<Run>> {
+    pub fn get_col_runs(&self, idx: usize, flex: bool) -> Option<&Vec<Run>> {
+        let mrlifcr = if flex {
+            &self.flex_columns.get(idx)?.music_responsive_list_item_flex_column_renderer
+        } else {
+            &self.fixed_columns.as_ref()?.get(idx)?.music_responsive_list_item_fixed_column_renderer
+        };
         Some(
-            self.flex_columns
-                .get(flex_i)?
-                .music_responsive_list_item_flex_column_renderer
+            mrlifcr
                 .text
                 .runs
                 .as_ref()?,
@@ -275,6 +279,11 @@ pub struct NextContinuationData {
 #[serde(rename_all = "camelCase")]
 pub struct FlexColumn {
     pub music_responsive_list_item_flex_column_renderer: MusicResponsiveListItemFlexColumnRenderer,
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FixedColumn {
+    pub music_responsive_list_item_fixed_column_renderer: MusicResponsiveListItemFlexColumnRenderer,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]

@@ -8,16 +8,18 @@ use crate::music_api::Song;
 use crate::music_api::Songs;
 use crate::music_api::PLAYLIST_DESC;
 use crate::spotify::model::SpotifySearchResponse;
-use crate::utils::clean_quotes;
+use crate::utils::clean_bad_chars_spotify;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
+use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use std::collections::HashMap;
 use tokio::net::TcpListener;
 
+use self::model::SpotifyEmptyResponse;
 use self::model::SpotifyPageResponse;
 use self::model::SpotifyPlaylistResponse;
 use self::model::SpotifySnapshotResponse;
@@ -163,12 +165,47 @@ impl SpotifyApi {
             request = request.query(p);
         }
         let res = request.send().await?;
+        if res.status() != StatusCode::OK && res.status() != StatusCode::CREATED {
+            return Err(anyhow!("Invalid response: {}", res.text().await?));
+        }
         // TODO: change this
         let text = res.text().await?;
         std::fs::write("data.json", &text).unwrap();
         let obj = serde_json::from_str(&text)?;
         //let json = res.json().await?;
         Ok(obj)
+    }
+
+    async fn delete_request<T>(&self, path: &str, body: serde_json::Value) -> Result<()>
+    where
+        T: DeserializeOwned,
+    {
+        let endpoint = self.build_endpoint(path);
+        let res = self.client.delete(endpoint).json(&body).send().await?;
+        if res.status() != StatusCode::OK && res.status() != StatusCode::CREATED {
+            return Err(anyhow!("Invalid response: {}", res.text().await?));
+        }
+        let text = res.text().await?;
+        if text.is_empty() {
+            return Ok(())
+        }
+        let _: T = serde_json::from_str(&text)?;
+        Ok(())
+    }
+}
+
+pub fn push_to_query(
+    query: &mut Vec<String>,
+    part: String,
+    cur_len: usize,
+    max_len: usize,
+) -> usize {
+    let new_l = cur_len + part.len();
+    if new_l + query.len() < max_len {
+        query.push(part);
+        new_l
+    } else {
+        cur_len
     }
 }
 
@@ -203,11 +240,7 @@ impl MusicApi for SpotifyApi {
         Ok(songs.0)
     }
 
-    async fn add_songs_to_playlist<T>(
-        &self,
-        playlist_id: &str,
-        songs_ids: &[T],
-    ) -> Result<()>
+    async fn add_songs_to_playlist<T>(&self, playlist_id: &str, songs_ids: &[T]) -> Result<()>
     where
         T: AsRef<str> + Sync,
     {
@@ -218,43 +251,88 @@ impl MusicApi for SpotifyApi {
             .map(|id| format!("spotify:track:{}", id.as_ref()))
             .collect();
         let path = format!("/playlists/{}/tracks", playlist_id);
-        let body = json!({
-            "uris": uris,
-        });
-        let _: SpotifySnapshotResponse = self.make_request(&path, None, Some(body), 50, 0).await?;
+        for u in uris.as_slice().chunks(100) {
+            let body = json!({
+                "uris": u,
+            });
+            let _: SpotifySnapshotResponse = self.make_request(&path, None, Some(body), 50, 0).await?;
+        }
         Ok(())
     }
 
-    async fn remove_songs_from_playlist<'a>(
+    async fn remove_songs_from_playlist<T: AsRef<str> + Sync>(
         &self,
         playlist: &mut Playlist,
-        songs_ids: &[&'a str],
+        songs_ids: &[T],
     ) -> Result<()> {
-        todo!();
+        // TODO: remove Song object from Playlist
+
+        let uris: Vec<serde_json::Value> = songs_ids
+            .iter()
+            .map(|id| {
+                let uri = format!("spotify:track:{}", id.as_ref());
+                json!({ "uri": uri })
+            })
+            .collect();
+        let path = format!("/playlists/{}/tracks", playlist.id);
+        let body = json!({
+            "tracks": uris,
+        });
+        self.delete_request::<SpotifySnapshotResponse>(&path, body).await?;
+        Ok(())
     }
 
-    async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
+    async fn delete_playlist(&self, playlist_id: &str) -> Result<()> {
+        let path = format!("/playlists/{}/followers", playlist_id);
+        let body = json!({
+            "playlist_id": playlist_id,
+        });
+        self.delete_request::<()>(&path, body).await?;
+        Ok(())
+    }
+
+    async fn search_song(&self, song: &Song, precise: bool) -> Result<Option<Song>> {
         // Spotify doesn't support quotes in search
 
         let path = "/search";
-        let mut vec_query = vec![];
-        let track = format!("track:{}", clean_quotes(&song.clean_name));
-        vec_query.push(track);
-        let artists: Vec<String> = song.artists.iter().map(|a| clean_quotes(&a.name)).collect();
-        let artists = format!("artist:{}", artists.join(", "));
-        vec_query.push(artists);
+        let mut query = vec![];
+        let mut query_len = 0;
+        let max_len = 100;
+
+        let mut track = clean_bad_chars_spotify(&song.clean_name);
+        if precise {
+            track = format!("track:{}", track);
+        }
+        // TODO: fix this
+        if track.len() > max_len {
+            println!("AAAAAAAAAAAAAAAAAA: {}", track);
+            return Ok(None);
+        }
+        query_len = push_to_query(&mut query, track, query_len, max_len);
+
+        let artists: Vec<String> = song
+            .artists
+            .iter()
+            .map(|a| clean_bad_chars_spotify(&a.name))
+            .collect();
+        let mut artists = artists.join(" ");
+        if precise {
+            artists = format!("artist:{}", artists);
+        }
+        query_len = push_to_query(&mut query, artists, query_len, max_len);
+
         if let Some(album) = &song.album {
+            // TODO: improve this for singles
             // Otherwise it might be a single
             if album.name != song.name {
-                let album = format!("album:{}", clean_quotes(&album.name));
-                // TODO: fix this
-                // "q" parameter is limited at ~100 chars
-                if vec_query.join(",").len() + album.len() < 100 {
-                    vec_query.push(album)
+                let mut album = clean_bad_chars_spotify(&album.name);
+                if precise {
+                    album = format!("album:{}", album);
                 }
+                query_len = push_to_query(&mut query, album, query_len, max_len);
             }
         }
-        let query = vec_query.join(" ");
+        let query = query.join(" ");
 
         let get_params = [("type", "track"), ("q", &query)];
         let res: SpotifySearchResponse = self
@@ -262,10 +340,13 @@ impl MusicApi for SpotifyApi {
             .await?;
         let mut songs: Songs = res.try_into()?;
         if songs.0.is_empty() {
-            println!("QUERY: {}", query);
-            Ok(None)
-        } else {
-            Ok(Some(songs.0.remove(0)))
+            if precise {
+                let res = self.search_song(song, false).await?;
+                println!("NEW UNPRECISE: {}", song.name);
+                return Ok(res);
+            }
+            return Ok(None);
         }
+        Ok(Some(songs.0.remove(0)))
     }
 }

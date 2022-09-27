@@ -10,12 +10,15 @@ pub fn clean_parenthesis(name: &str, tag: &str) -> String {
         Some(n) => {
             let (a, b) = name.split_at(n);
             let b: String = b.chars().skip_while(|c| *c != ')').skip(1).collect();
-            format!("{}{}", &a[..a.len()-1], &b.trim_end())
+            format!("{}{}", &a.trim_end(), &b)
         },
         None => name.to_string(),
     }
 }
 
-pub fn clean_quotes(name: &str) -> String {
-    name.replace("'", "")
+pub fn clean_bad_chars_spotify(name: &str) -> String {
+    let name = name.replace("'", "");
+    let name = name.replace("\"", "");
+    let name = name.replace(":", " ");
+    name
 }

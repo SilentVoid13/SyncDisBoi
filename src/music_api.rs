@@ -2,7 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use futures::future::try_join_all;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 pub const PLAYLIST_DESC: &'static str = "Playlist created by SyncDisBoy";
 
@@ -33,18 +33,19 @@ pub trait MusicApi {
     }
 
     async fn add_songs_to_playlist<T: AsRef<str> + Sync>(&self, playlist_id: &str, songs_ids: &[T]) -> Result<()>;
-    async fn remove_songs_from_playlist<'a>(&self, playlist: &mut Playlist, songs_ids: &[&'a str]) -> Result<()>;
+    async fn remove_songs_from_playlist<T: AsRef<str> + Sync>(&self, playlist: &mut Playlist, songs_ids: &[T]) -> Result<()>;
+    async fn delete_playlist(&self, playlist_id: &str) -> Result<()>;
 
-    async fn search_song(&self, song: &Song) -> Result<Option<Song>>;
+    async fn search_song(&self, song: &Song, precise: bool) -> Result<Option<Song>>;
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Playlists(pub Vec<Playlist>);
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Songs(pub Vec<Song>);
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Playlist {
     //pub source: MusicApiType,
     pub id: String,
@@ -52,7 +53,7 @@ pub struct Playlist {
     pub songs: Option<Vec<Song>>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Song {
     pub id: String,
     pub sid: Option<String>,
@@ -60,15 +61,16 @@ pub struct Song {
     pub clean_name: String,
     pub album: Option<Album>,
     pub artists: Vec<Artist>,
+    pub duration: usize,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Album {
     pub id: Option<String>,
     pub name: String,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Artist {
     pub id: Option<String>,
     pub name: String,

@@ -9,10 +9,7 @@ pub struct SpotifyToken {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct SpotifyUser {
-    pub id: String,
-    pub display_name: String,
-    pub email: String,
+pub struct SpotifyEmptyResponse {
 }
 
 #[derive(Deserialize, Debug)]
@@ -52,6 +49,7 @@ pub struct SpotifySongItemResponse {
 pub struct SpotifySongResponse {
     pub id: String,
     pub name: String,
+    pub duration_ms: usize,
     pub artists: Vec<SpotifyArtistResponse>,
     pub album: SpotifyAlbumResponse,
 }

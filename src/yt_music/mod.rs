@@ -214,15 +214,19 @@ impl MusicApi for YtMusicApi {
         Ok(())
     }
 
-    async fn remove_songs_from_playlist<'a>(
+    async fn remove_songs_from_playlist<T: AsRef<str> + Sync>(
         &self,
         playlist: &mut Playlist,
-        songs_ids: &[&'a str],
+        songs_ids: &[T],
     ) -> Result<()> {
         todo!();
     }
 
-    async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
+    async fn delete_playlist(&self, playlist_id: &str) -> Result<()> {
+        todo!();
+    }
+
+    async fn search_song(&self, song: &Song, precise: bool) -> Result<Option<Song>> {
         todo!();
     }
 }

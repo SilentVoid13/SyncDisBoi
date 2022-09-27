@@ -82,6 +82,7 @@ impl TryInto<Song> for SpotifySongResponse {
             id: Some(self.album.id),
             name: self.album.name,
         };
+        let duration = self.duration_ms / 1000;
         Ok(Song {
             id: self.id,
             clean_name: clean_song_name(&self.name),
@@ -89,6 +90,7 @@ impl TryInto<Song> for SpotifySongResponse {
             sid: None,
             album: Some(album),
             artists,
+            duration,
         })
     }
 }
