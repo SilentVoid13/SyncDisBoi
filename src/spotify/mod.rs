@@ -205,6 +205,7 @@ pub fn push_to_query(
         query.push(part);
         new_l
     } else {
+        println!("OVERFLOW: {:?} {}", query, part);
         cur_len
     }
 }
@@ -301,11 +302,11 @@ impl MusicApi for SpotifyApi {
 
         let mut track = clean_bad_chars_spotify(&song.clean_name);
         if precise {
-            track = format!("track:{}", track);
+            track = format!("track:\"{}\"", track);
         }
         // TODO: fix this
         if track.len() > max_len {
-            println!("AAAAAAAAAAAAAAAAAA: {}", track);
+            println!("CANT EVEN ADD NAME TO QUERY: {}", track);
             return Ok(None);
         }
         query_len = push_to_query(&mut query, track, query_len, max_len);
@@ -317,7 +318,7 @@ impl MusicApi for SpotifyApi {
             .collect();
         let mut artists = artists.join(" ");
         if precise {
-            artists = format!("artist:{}", artists);
+            artists = format!("artist:\"{}\"", artists);
         }
         query_len = push_to_query(&mut query, artists, query_len, max_len);
 
@@ -327,7 +328,7 @@ impl MusicApi for SpotifyApi {
             if album.name != song.name {
                 let mut album = clean_bad_chars_spotify(&album.name);
                 if precise {
-                    album = format!("album:{}", album);
+                    album = format!("album:\"{}\"", album);
                 }
                 query_len = push_to_query(&mut query, album, query_len, max_len);
             }
@@ -340,11 +341,14 @@ impl MusicApi for SpotifyApi {
             .await?;
         let mut songs: Songs = res.try_into()?;
         if songs.0.is_empty() {
+            /*
             if precise {
                 let res = self.search_song(song, false).await?;
                 println!("NEW UNPRECISE: {}", song.name);
                 return Ok(res);
             }
+            */
+            println!("QUERY: {}", query);
             return Ok(None);
         }
         Ok(Some(songs.0.remove(0)))

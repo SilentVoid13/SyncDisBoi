@@ -1,4 +1,4 @@
-use crate::music_api::{MusicApi, Playlists};
+use crate::music_api::{MusicApi, Playlists, Playlist};
 
 use anyhow::Result;
 
@@ -17,11 +17,13 @@ where
     let src_playlists: Playlists = serde_json::from_str(&std::fs::read_to_string("src_playlists.json").unwrap()).unwrap();
     let src_playlists = src_playlists.0;
 
+    // TODO: remove this
     let mut dest_playlists = dest_api.get_playlists_full().await?;
     for p in dest_playlists.iter() {
         dest_api.delete_playlist(&p.id).await?;
     }
-    let mut dest_playlists = dest_api.get_playlists_full().await?;
+    //let mut dest_playlists = dest_api.get_playlists_full().await?;
+    let mut dest_playlists: Vec<Playlist> = vec![];
 
     // TODO: remove this
     let mut missing_output = json!({});
@@ -55,7 +57,7 @@ where
             let dest_song = dest_api.search_song(src_song, true).await?;
             if let Some(s) = dest_song {
                 if !(src_song.duration-1..src_song.duration+1).contains(&s.duration) {
-                    println!("{}: {} vs {}", s.name, s.duration, src_song.duration);
+                    //println!("{}: {} vs {}", s.name, s.duration, src_song.duration);
                 }
                 dest_songs_ids.push(s.id);
             } else {
@@ -70,7 +72,7 @@ where
         }
 
         let conversion_rate = dest_songs_ids.len() as f64 / src_songs.len() as f64;
-        println!("conversion rate {}/{}: {}", dest_songs_ids.len(), src_songs.len(), conversion_rate);
+        //println!("conversion rate {}/{}: {}", dest_songs_ids.len(), src_songs.len(), conversion_rate);
         stats
             .as_object_mut()
             .unwrap()
