@@ -2,10 +2,11 @@ use std::convert::TryInto;
 
 use anyhow::{Error, Result};
 
-use crate::{music_api::{Album, Artist, Playlist, Playlists, Song, Songs}, utils::clean_song_name};
+use crate::music_api::{Album, Artist, Playlist, Playlists, Song, Songs};
 
 use super::model::{
-    SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySongItemResponse, SpotifySongResponse, SpotifySearchResponse,
+    SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySearchResponse, SpotifySongItemResponse,
+    SpotifySongResponse,
 };
 
 impl TryInto<Songs> for SpotifySearchResponse {
@@ -18,7 +19,7 @@ impl TryInto<Songs> for SpotifySearchResponse {
 
 impl<T> TryInto<Playlists> for SpotifyPageResponse<T>
 where
-    T: TryInto<Playlist, Error=Error>,
+    T: TryInto<Playlist, Error = Error>,
 {
     type Error = Error;
 
@@ -33,7 +34,7 @@ where
 
 impl<T> TryInto<Songs> for SpotifyPageResponse<T>
 where
-    T: TryInto<Song, Error=Error>,
+    T: TryInto<Song, Error = Error>,
 {
     type Error = Error;
 
@@ -82,15 +83,13 @@ impl TryInto<Song> for SpotifySongResponse {
             id: Some(self.album.id),
             name: self.album.name,
         };
-        let duration = self.duration_ms / 1000;
         Ok(Song {
             id: self.id,
-            clean_name: clean_song_name(&self.name),
             name: self.name,
             sid: None,
             album: Some(album),
             artists,
-            duration,
+            duration: self.duration_ms,
         })
     }
 }

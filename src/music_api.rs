@@ -2,9 +2,12 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use futures::future::try_join_all;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use strsim::normalized_levenshtein;
 
-pub const PLAYLIST_DESC: &'static str = "Playlist created by SyncDisBoy";
+use crate::utils::generic_name_clean;
+
+pub const PLAYLIST_DESC: &'static str = "Playlist created by SyncDisBoi";
 
 pub enum MusicApiType {
     Spotify,
@@ -32,11 +35,19 @@ pub trait MusicApi {
         Ok(playlists)
     }
 
-    async fn add_songs_to_playlist<T: AsRef<str> + Sync>(&self, playlist_id: &str, songs_ids: &[T]) -> Result<()>;
-    async fn remove_songs_from_playlist<T: AsRef<str> + Sync>(&self, playlist: &mut Playlist, songs_ids: &[T]) -> Result<()>;
+    async fn add_songs_to_playlist<T: AsRef<str> + Sync>(
+        &self,
+        playlist_id: &str,
+        songs_ids: &[T],
+    ) -> Result<()>;
+    async fn remove_songs_from_playlist<T: AsRef<str> + Sync>(
+        &self,
+        playlist: &mut Playlist,
+        songs_ids: &[T],
+    ) -> Result<()>;
     async fn delete_playlist(&self, playlist_id: &str) -> Result<()>;
 
-    async fn search_song(&self, song: &Song, precise: bool) -> Result<Option<Song>>;
+    async fn search_song(&self, song: &Song) -> Result<Option<Song>>;
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -58,10 +69,40 @@ pub struct Song {
     pub id: String,
     pub sid: Option<String>,
     pub name: String,
-    pub clean_name: String,
     pub album: Option<Album>,
     pub artists: Vec<Artist>,
     pub duration: usize,
+}
+
+impl Song {
+    pub fn compare(&self, other: &Self) -> bool {
+        let name1 = generic_name_clean(&self.name);
+        let name2 = generic_name_clean(&other.name);
+        //let name1 = &self.name;
+        //let name2 = &other.name;
+        let score = normalized_levenshtein(&name1, &name2).abs();
+        if score < 0.8 {
+            println!("SCORE: {} --> {} vs {}", score, name1, name2);
+            return false;
+        } else {
+        }
+
+        if self.album.is_some() != other.album.is_some() {
+            return false;
+        }
+
+        let dur1 = self.duration / 1000;
+        let dur2 = self.duration / 1000;
+        if !(dur1 - 1..dur1 + 1).contains(&dur2) {
+            println!(
+                "DURATION: {}/{} --> {} VS {}",
+                self.duration, other.duration, self.name, other.name
+            );
+            return false;
+        }
+
+        true
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]

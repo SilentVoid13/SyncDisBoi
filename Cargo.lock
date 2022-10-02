@@ -1157,7 +1157,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sync_dis_boy"
+name = "sync_dis_boi"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1170,6 +1170,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha1",
+ "strsim",
  "tokio",
  "webbrowser",
 ]

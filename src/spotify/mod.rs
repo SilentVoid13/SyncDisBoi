@@ -8,12 +8,12 @@ use crate::music_api::Song;
 use crate::music_api::Songs;
 use crate::music_api::PLAYLIST_DESC;
 use crate::spotify::model::SpotifySearchResponse;
-use crate::utils::clean_bad_chars_spotify;
+use crate::utils::generic_name_clean;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
-use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
+use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use std::collections::HashMap;
@@ -187,7 +187,7 @@ impl SpotifyApi {
         }
         let text = res.text().await?;
         if text.is_empty() {
-            return Ok(())
+            return Ok(());
         }
         let _: T = serde_json::from_str(&text)?;
         Ok(())
@@ -205,7 +205,6 @@ pub fn push_to_query(
         query.push(part);
         new_l
     } else {
-        println!("OVERFLOW: {:?} {}", query, part);
         cur_len
     }
 }
@@ -256,7 +255,8 @@ impl MusicApi for SpotifyApi {
             let body = json!({
                 "uris": u,
             });
-            let _: SpotifySnapshotResponse = self.make_request(&path, None, Some(body), 50, 0).await?;
+            let _: SpotifySnapshotResponse =
+                self.make_request(&path, None, Some(body), 50, 0).await?;
         }
         Ok(())
     }
@@ -279,7 +279,8 @@ impl MusicApi for SpotifyApi {
         let body = json!({
             "tracks": uris,
         });
-        self.delete_request::<SpotifySnapshotResponse>(&path, body).await?;
+        self.delete_request::<SpotifySnapshotResponse>(&path, body)
+            .await?;
         Ok(())
     }
 
@@ -292,7 +293,7 @@ impl MusicApi for SpotifyApi {
         Ok(())
     }
 
-    async fn search_song(&self, song: &Song, precise: bool) -> Result<Option<Song>> {
+    async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
         // Spotify doesn't support quotes in search
 
         let path = "/search";
@@ -300,10 +301,12 @@ impl MusicApi for SpotifyApi {
         let mut query_len = 0;
         let max_len = 100;
 
-        let mut track = clean_bad_chars_spotify(&song.clean_name);
-        if precise {
-            track = format!("track:\"{}\"", track);
-        }
+        // TODO: It looks like single quotes have better results compared to double quotes, not
+        // sure why
+
+        let mut track = generic_name_clean(&song.name);
+        track = format!("\"{}\"", track);
+
         // TODO: fix this
         if track.len() > max_len {
             println!("CANT EVEN ADD NAME TO QUERY: {}", track);
@@ -314,26 +317,22 @@ impl MusicApi for SpotifyApi {
         let artists: Vec<String> = song
             .artists
             .iter()
-            .map(|a| clean_bad_chars_spotify(&a.name))
+            .map(|a| format!("\"{}\"", generic_name_clean(&a.name)))
             .collect();
-        let mut artists = artists.join(" ");
-        if precise {
-            artists = format!("artist:\"{}\"", artists);
-        }
+        let artists = artists.join("+");
         query_len = push_to_query(&mut query, artists, query_len, max_len);
 
         if let Some(album) = &song.album {
             // TODO: improve this for singles
             // Otherwise it might be a single
-            if album.name != song.name {
-                let mut album = clean_bad_chars_spotify(&album.name);
-                if precise {
-                    album = format!("album:\"{}\"", album);
-                }
+            let mut album = generic_name_clean(&album.name);
+            let song = generic_name_clean(&song.name);
+            if album != song {
+                album = format!("\"{}\"", album);
                 query_len = push_to_query(&mut query, album, query_len, max_len);
             }
         }
-        let query = query.join(" ");
+        let query = query.join("+");
 
         let get_params = [("type", "track"), ("q", &query)];
         let res: SpotifySearchResponse = self
@@ -341,6 +340,7 @@ impl MusicApi for SpotifyApi {
             .await?;
         let mut songs: Songs = res.try_into()?;
         if songs.0.is_empty() {
+            println!("QUERY: {}", query);
             /*
             if precise {
                 let res = self.search_song(song, false).await?;
@@ -348,7 +348,6 @@ impl MusicApi for SpotifyApi {
                 return Ok(res);
             }
             */
-            println!("QUERY: {}", query);
             return Ok(None);
         }
         Ok(Some(songs.0.remove(0)))

@@ -226,7 +226,7 @@ impl MusicApi for YtMusicApi {
         todo!();
     }
 
-    async fn search_song(&self, song: &Song, precise: bool) -> Result<Option<Song>> {
+    async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
         todo!();
     }
 }

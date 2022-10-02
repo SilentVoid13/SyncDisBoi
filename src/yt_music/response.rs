@@ -1,6 +1,6 @@
 use crate::{
     music_api::{Album, Artist, Playlist, Playlists, Song, Songs},
-    yt_music::model::YtMusicResponse, utils::clean_song_name,
+    yt_music::model::YtMusicResponse,
 };
 
 use anyhow::{Context, Error, Result};
@@ -11,9 +11,9 @@ pub fn parse_duration(duration_str: &str) -> Result<usize> {
     let mut i = 0;
     for part in duration_str.rsplit(":") {
         seconds += part.parse::<usize>()? * multipliers[i];
-        i+=1;
+        i += 1;
     }
-    Ok(seconds)
+    Ok(seconds*1000)
 }
 
 impl TryInto<Playlists> for YtMusicResponse {
@@ -53,7 +53,7 @@ impl TryInto<Songs> for YtMusicResponse {
         let mrlirs = match self.get_mrlirs() {
             Some(x) => x,
             // No songs in the playlist
-            None => return Ok(Songs(songs_vec))
+            None => return Ok(Songs(songs_vec)),
         };
 
         for mrlir in mrlirs
@@ -93,7 +93,6 @@ impl TryInto<Songs> for YtMusicResponse {
             let song = Song {
                 id,
                 sid: Some(set_id),
-                clean_name: clean_song_name(&name),
                 name,
                 artists,
                 album,

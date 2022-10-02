@@ -1,11 +1,3 @@
-pub fn clean_song_name(name: &str) -> String {
-    let name = clean_enclosure(&name, "(", ")");
-    let name = clean_enclosure(&name, "[", "]");
-    //let name = clean_enclosure(&name, "(feat.");
-    //let name = clean_enclosure(&name, "(with");
-    name
-}
-
 pub fn clean_enclosure(name: &str, start_tag: &str, end_tag: &str) -> String {
     let mut res = vec![];
     for split in name.split(start_tag) {
@@ -14,12 +6,17 @@ pub fn clean_enclosure(name: &str, start_tag: &str, end_tag: &str) -> String {
             None => res.push(split.trim_end())
         };
     }
-    res.join("")
+    res.join("").trim_end().to_string()
 }
 
-pub fn clean_bad_chars_spotify(name: &str) -> String {
+pub fn generic_name_clean(name: &str) -> String {
+    let name = name.to_lowercase();
     let name = name.replace("'", "");
     let name = name.replace("\"", "");
     let name = name.replace(":", " ");
-    name
+    let name = clean_enclosure(&name, "(", ")");
+    let name = clean_enclosure(&name, "[", "]");
+    let name = name.split(" - ").next().unwrap().to_string();
+    let name = name.replace("-", "");
+    name.trim_end().to_string()
 }
