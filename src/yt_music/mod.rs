@@ -41,19 +41,20 @@ impl YtMusicApi {
             },
             "user": {}
         });
+        
 
         let mut headers = HeaderMap::new();
         headers.insert("accept", "*/*".parse()?);
         headers.insert("content-type", "application/json; charset=UTF-8".parse()?);
         headers.insert("authorization", secret.parse()?);
-        headers.insert("cookie", cookies.parse()?);
+        headers.insert("cookie", cookies.trim().parse().unwrap());
         headers.insert("origin", origin.parse()?);
         headers.insert("user-agent",  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.102 Safari/537.36".parse()?);
         headers.insert("x-goog-authuser", "0".parse()?);
         headers.insert("x-goog-pageid", "100654875389698742898".parse()?);
         headers.insert(
             "x-goog-visitor-id",
-            "CgtzUXZMenhNbFR4MCiI0rmYBg%3D%3D".parse()?,
+            "CgtFMUR1cU1wVmhUdyiTiNChBg%3D%3D".parse()?,
         );
 
         let client = reqwest::ClientBuilder::new()
@@ -228,5 +229,14 @@ impl MusicApi for YtMusicApi {
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
         todo!();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_ytmusic_to_spotify() {
     }
 }

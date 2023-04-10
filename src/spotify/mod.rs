@@ -353,3 +353,45 @@ impl MusicApi for SpotifyApi {
         Ok(Some(songs.0.remove(0)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{env, path::PathBuf};
+
+    use crate::yt_music::YtMusicApi;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_spotify_search_from_ytmusic() {
+        let ytmusic_cookies = env::var("YT_MUSIC_COOKIES").unwrap();
+        let ytmusic_cookies = PathBuf::from(ytmusic_cookies);
+        let ytmusic_secret = std::env::var("YT_MUSIC_SECRET").unwrap();
+        let ytmusic = YtMusicApi::new(&ytmusic_cookies, &ytmusic_secret).unwrap();
+
+        let playlists = ytmusic.get_playlists_info().await.unwrap();
+        let test_spotify = playlists.iter().find(|p| p.name == "TestSpotify").unwrap();
+        let songs = ytmusic.get_playlist_songs(&test_spotify.id).await.unwrap();
+        println!("Songs: {:?}", songs);
+
+        let spotify_client_id = env::var("SPOTIFY_CLIENT_ID").unwrap();
+        let spotify_secret = env::var("SPOTIFY_CLIENT_SECRET").unwrap();
+        let spotify = SpotifyApi::new(&spotify_client_id, &spotify_secret)
+            .await
+            .unwrap();
+
+        let songs = spotify.search_songs(&songs).await.unwrap();
+        let correct_ids = [
+            "2x1GoZKREbFkQJ8FUaz3Lc",
+            "4wSmqFg31t6LsQWtzYAJob",
+            "5dayqPrW7a4b2Skq3EcxWK",
+            "1vU4X8ffq8oNcvvqkgTEXm",
+            "1YqUm734e5Yv5BJEDhLYxK",
+        ];
+        for song in songs {
+            let song = song.unwrap();
+            println!("Testing song: {}, id {}", song.name, song.id);
+            assert!(correct_ids.contains(&song.id.as_str()));
+        }
+    }
+}
