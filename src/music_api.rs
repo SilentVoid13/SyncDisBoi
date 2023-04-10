@@ -48,6 +48,15 @@ pub trait MusicApi {
     async fn delete_playlist(&self, playlist_id: &str) -> Result<()>;
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>>;
+
+    async fn search_songs(&self, songs: &[Song]) -> Result<Vec<Option<Song>>> {
+        let mut requests = vec![];
+        for song in songs.iter() {
+            requests.push(self.search_song(song));
+        }
+        let results = try_join_all(requests).await?;
+        Ok(results)
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -82,9 +91,8 @@ impl Song {
         //let name2 = &other.name;
         let score = normalized_levenshtein(&name1, &name2).abs();
         if score < 0.8 {
-            println!("SCORE: {} --> {} vs {}", score, name1, name2);
+            println!("SCORE: {score} --> {name1} vs {name2}");
             return false;
-        } else {
         }
 
         if self.album.is_some() != other.album.is_some() {

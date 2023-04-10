@@ -7,9 +7,9 @@ pub struct YtMusicResponse {
 }
 impl YtMusicResponse {
     pub fn merge(&mut self, other: &mut YtMusicContinuationResponse) -> Option<()> {
-        if let Some(isrc) = self.get_item_section_renderer_content() {
+        if let Some(gr) = self.get_grid_renderer () {
             Some(
-                isrc.grid_renderer.as_mut()?.items.append(
+                gr.items.append(
                     &mut other
                         .continuation_contents
                         .grid_continuation
@@ -48,9 +48,7 @@ impl YtMusicResponse {
 
     pub fn get_mtrirs(&mut self) -> Option<Vec<&MusicTwoRowItemRenderer>> {
         Some(
-            self.get_item_section_renderer_content()?
-                .grid_renderer
-                .as_ref()?
+            self.get_grid_renderer()?
                 .items
                 .iter()
                 .map(|item2| &item2.music_two_row_item_renderer)
@@ -66,17 +64,15 @@ impl YtMusicResponse {
             .contents
             .iter_mut()
             .find(|item| {
-                item.music_playlist_shelf_renderer.is_some() || item.item_section_renderer.is_some()
+                item.music_playlist_shelf_renderer.is_some() || item.grid_renderer.is_some()
             })
     }
 
-    pub fn get_item_section_renderer_content(&mut self) -> Option<&mut ItemSectionRendererContent> {
+    pub fn get_grid_renderer(&mut self) -> Option<&mut GridRenderer> {
         Some(
-            &mut self
-                .get_section_renderer_content()?
-                .item_section_renderer
-                .as_mut()?
-                .contents[0],
+            self.get_section_renderer_content()?
+                .grid_renderer
+                .as_mut()?,
         )
     }
 
@@ -89,8 +85,8 @@ impl YtMusicResponse {
     }
 
     pub fn get_continuation(&mut self) -> Option<String> {
-        if let Some(isrc) = self.get_item_section_renderer_content() {
-            Some(isrc.grid_renderer.as_ref()?.continuations.as_ref()?[0].get_continuation())
+        if let Some(gr) = self.get_grid_renderer() {
+            Some(gr.continuations.as_ref()?[0].get_continuation())
         } else if let Some(mpsr) = self.get_music_playlist_shelf_renderer() {
             Some(mpsr.continuations.as_ref()?[0].get_continuation())
         } else {
@@ -139,7 +135,9 @@ pub struct TabRendererContent {
 #[serde(rename_all = "camelCase")]
 pub struct SectionRendererContent {
     pub music_playlist_shelf_renderer: Option<MusicPlaylistShelfRenderer>,
-    pub item_section_renderer: Option<ContentsSingle<ItemSectionRendererContent>>,
+    // Old response
+    //pub item_section_renderer: Option<ContentsSingle<ItemSectionRendererContent>>,
+    pub grid_renderer: Option<GridRenderer>,
 }
 
 #[derive(Deserialize, Debug)]
