@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use anyhow::{Error, Result};
 
-use crate::music_api::{Album, Artist, Playlist, Playlists, Song, Songs};
+use crate::music_api::{Album, Artist, Playlist, Playlists, Song, Songs, MusicApiType};
 
 use super::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySearchResponse, SpotifySongItemResponse,
@@ -84,6 +84,7 @@ impl TryInto<Song> for SpotifySongResponse {
             name: self.album.name,
         };
         Ok(Song {
+            source: MusicApiType::Spotify,
             id: self.id,
             name: self.name,
             sid: None,

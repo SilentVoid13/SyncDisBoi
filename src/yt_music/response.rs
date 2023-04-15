@@ -1,5 +1,5 @@
 use crate::{
-    music_api::{Album, Artist, Playlist, Playlists, Song, Songs},
+    music_api::{Album, Artist, Playlist, Playlists, Song, Songs, MusicApiType},
     yt_music::model::YtMusicResponse,
 };
 
@@ -91,6 +91,7 @@ impl TryInto<Songs> for YtMusicResponse {
                 });
             }
             let song = Song {
+                source: MusicApiType::YtMusic,
                 id,
                 sid: Some(set_id),
                 name,

@@ -41,7 +41,6 @@ impl YtMusicApi {
             },
             "user": {}
         });
-        
 
         let mut headers = HeaderMap::new();
         headers.insert("accept", "*/*".parse()?);
@@ -186,19 +185,12 @@ impl MusicApi for YtMusicApi {
         Ok(songs.0)
     }
 
-    async fn add_songs_to_playlist<T>(
-        &self,
-        playlist_id: &str,
-        songs_ids: &[T],
-    ) -> Result<()>
-    where
-        T: AsRef<str> + Sync,
-    {
+    async fn add_songs_to_playlist(&self, playlist_id: &str, songs_ids: &[String]) -> Result<()> {
         let mut actions = vec![];
         for song_id in songs_ids.iter() {
             let action = json!({
                 "action": "ACTION_ADD_VIDEO",
-                "addedVideoId": song_id.as_ref(),
+                "addedVideoId": song_id,
             });
             actions.push(action);
         }
@@ -215,19 +207,19 @@ impl MusicApi for YtMusicApi {
         Ok(())
     }
 
-    async fn remove_songs_from_playlist<T: AsRef<str> + Sync>(
+    async fn remove_songs_from_playlist(
         &self,
-        playlist: &mut Playlist,
-        songs_ids: &[T],
+        _playlist: &mut Playlist,
+        _songs_ids: &[String],
     ) -> Result<()> {
         todo!();
     }
 
-    async fn delete_playlist(&self, playlist_id: &str) -> Result<()> {
+    async fn delete_playlist(&self, _playlist_id: &str) -> Result<()> {
         todo!();
     }
 
-    async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
+    async fn search_song(&self, _song: &Song) -> Result<Option<Song>> {
         todo!();
     }
 }
@@ -237,6 +229,5 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_ytmusic_to_spotify() {
-    }
+    async fn test_ytmusic_to_spotify() {}
 }
