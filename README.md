@@ -7,7 +7,17 @@ music streaming services. It currently supports:
 
 This project is made for music lovers who want to maintain their playlists across different music streaming services.
 
+## Synchronization precision
+
 SyncDisBoi focuses on precision to ensure that each song on the source playlist matches accurately to the corresponding song on the destination playlist. This feature is particularly useful for users who prioritize maintaining the integrity of their playlists and avoid ending up with weird remixes during synchronization.
+
+SyncDisBoi verifies the following properties to ensure that the two songs match:
+- Song name resemblance score ([Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance))
+- Album name resemblance score ([Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance))
+
+For Youtube Music, SyncDisBoi won't sync songs with no albums defined. That's because this means that the song is a video from Youtube and has no metadata that can be leveraged to accurately sync it.
+
+## Flexibility
 
 SyncDisBoi is designed with flexibility in mind. The tool's architecture enables easy addition of new music platforms, making it a great project for developers to contribute to.
 
