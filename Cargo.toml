@@ -3,8 +3,6 @@ name = "sync_dis_boi"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 anyhow = "1.0.62"
 async-recursion = "1.0.4"
@@ -19,4 +17,6 @@ serde_json = "1.0.85"
 sha1 = "0.10.2"
 strsim = "0.10.0"
 tokio = { version = "1.20.1", features = ["full"] }
+tracing = "0.1.37"
+tracing-subscriber = "0.3.16"
 webbrowser = "0.7.1"

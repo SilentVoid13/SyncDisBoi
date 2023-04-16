@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use strsim::normalized_levenshtein;
+use tracing::debug;
 
 use crate::utils::generic_name_clean;
 
@@ -107,7 +108,8 @@ impl Song {
         let name2 = other.clean_name();
         let score = normalized_levenshtein(&name1, &name2).abs();
         if score < 0.8 {
-            println!("Song score: {} --> {} vs {}", score, name1, name2);
+            // TODO: Remove this
+            debug!("Song score: {} --> {} vs {}", score, name1, name2);
             return false;
         }
 
@@ -130,7 +132,8 @@ impl Song {
                 let name2 = generic_name_clean(&album1.name);
                 let score = normalized_levenshtein(&name1, &name2).abs();
                 if score < 0.8 {
-                    println!("Album score: {} --> {:?} vs {:?}", score, album1, album2);
+                    // TODO: Remove this
+                    debug!("Album score: {} --> {:?} vs {:?}", score, album1, album2);
                     return false;
                 }
             }

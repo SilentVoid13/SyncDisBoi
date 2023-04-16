@@ -17,6 +17,9 @@ use reqwest::Response;
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use serde_json::json;
+use tracing::debug;
+use tracing::info;
+use tracing::warn;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::net::TcpListener;
@@ -154,7 +157,7 @@ impl SpotifyApi {
             .context("Invalid Retry-After header")?
             .parse::<u64>()
             .context("Invalid Retry-After header")?;
-        println!("Rate limit, sleeping for {} seconds", sleep_time);
+        warn!("API rate limit reached, sleeping for {} seconds", sleep_time);
         tokio::time::sleep(Duration::from_secs(sleep_time)).await;
         Ok(())
     }
@@ -225,7 +228,7 @@ impl SpotifyApi {
 
 pub fn push_query(queries: &mut Vec<String>, query: String, max_len: usize) {
     if query.len() > max_len {
-        println!("Query too long: {}", query);
+        debug!("Query too long: {}, skipping", query);
         return;
     }
     queries.push(query);
@@ -325,7 +328,7 @@ impl MusicApi for SpotifyApi {
 
         // TODO: fix this
         if track_query.len() > max_len {
-            println!("Can't add track to query: {}", track_query);
+            debug!("Can't add track to query, skipping: {}", track_query);
             // Not the best solution, but it's worth a try
             track_query = track_query[..max_len].to_string();
         }
@@ -374,7 +377,7 @@ impl MusicApi for SpotifyApi {
                 }
             }
         }
-        println!("Queries failed: {:?}", queries_b);
+        debug!("Queries failed: {:?}", queries_b);
         return Ok(None);
     }
 }

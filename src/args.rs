@@ -1,4 +1,7 @@
-use clap::{Parser, Args, ValueEnum};
+use clap::{Args, Parser, ValueEnum};
+use tracing::Level;
+use tracing_subscriber::filter::Targets;
+
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -21,16 +24,39 @@ pub struct RootArgs {
     /// Generate stats about the synchronization in a `stats` folder
     ///
     ///
-    /// This includes: 
+    /// This includes:
     /// - conversion rate for each playlist
     /// - list of songs that couldn't be synchronized
     /// - list of songs with no album metadata
     #[arg(long)]
     pub stats: bool,
 
-    /// Verbose output
-    #[arg(short, long)]
-    pub verbose: bool,
+    /// Logging level
+    #[arg(short, long, value_enum, default_value_t = LoggingLevel::Info)]
+    pub logging: LoggingLevel,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum LoggingLevel {
+    /// Only log errors
+    Error,
+    /// Log errors and warnings
+    Warn,
+    /// Log errors, warnings and info
+    Info,
+    /// Log errors, warnings, info and debug (very verbose)
+    Debug,
+}
+
+impl From<LoggingLevel> for Level {
+    fn from(level: LoggingLevel) -> Self {
+        match level {
+            LoggingLevel::Warn => Level::WARN,
+            LoggingLevel::Error => Level::ERROR,
+            LoggingLevel::Info => Level::INFO,
+            LoggingLevel::Debug => Level::DEBUG,
+        }
+    }
 }
 
 #[derive(ValueEnum, Clone, Debug)]

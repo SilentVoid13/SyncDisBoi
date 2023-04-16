@@ -2,11 +2,11 @@ use crate::music_api::{DynMusicApi, MusicApi, Playlist};
 
 use anyhow::Result;
 use serde_json::json;
+use tracing::{warn, info};
 
 pub async fn synchronize(
     src_api: DynMusicApi,
     dst_api: Box<dyn MusicApi + Sync>,
-    verbose: bool,
     stats: bool,
 ) -> Result<()> {
     // TODO: remove this
@@ -32,16 +32,12 @@ pub async fn synchronize(
     let mut stats = json!({});
 
     for src_playlist in src_playlists.iter().skip(5).filter(|p| p.songs.is_some()) {
-        if verbose {
-            println!("[*] Synchronizing playlist \"{}\" ...", src_playlist.name);
-        }
+        info!("Synchronizing playlist \"{}\" ...", src_playlist.name);
 
         let src_songs = match &src_playlist.songs {
             Some(s) => s,
             None => {
-                if verbose {
-                    println!("[!] No songs in source playlist \"{}\".", src_playlist.name);
-                }
+                warn!("No songs in source playlist \"{}\".", src_playlist.name);
                 continue;
             }
         };
@@ -73,7 +69,7 @@ pub async fn synchronize(
                     .as_array_mut()
                     .unwrap()
                     .push(json!(src_song));
-                println!("No album for source song, skipping: {}", src_song.name);
+                warn!("No album metadata for source song, skipping: {}", src_song.name);
                 continue;
             }
             total += 1;
@@ -124,7 +120,7 @@ pub async fn synchronize(
         }
     }
 
-    println!("[+] Synchronization complete.");
+    info!("Synchronization complete.");
 
     Ok(())
 }
