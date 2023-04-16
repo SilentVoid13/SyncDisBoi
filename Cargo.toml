@@ -4,17 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.62"
 async-recursion = "1.0.4"
 async-trait = "0.1.57"
-base64 = "0.13.0"
 clap = { version = "*", features = ["derive", "env"] }
+color-eyre = "0.6.2"
 futures = "0.3.24"
-hex = "0.4.3"
 reqwest = { version = "0.11.11", features = ["cookies", "json"] }
 serde = "1.0.144"
 serde_json = "1.0.85"
-sha1 = "0.10.2"
 strsim = "0.10.0"
 tokio = { version = "1.20.1", features = ["full"] }
 tracing = "0.1.37"

@@ -4,17 +4,13 @@ mod response;
 use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
 use crate::yt_music::model::YtMusicPlaylistCreateResponse;
 
-use anyhow::{anyhow, Result};
+use color_eyre::eyre::{eyre, Result};
 use async_trait::async_trait;
 use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde_json::json;
-use sha1::{Digest, Sha1};
 use std::fmt::Write;
-use std::{
-    path::PathBuf,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::path::PathBuf;
 
 use self::model::{YtMusicContinuationResponse, YtMusicPlaylistStatusResponse, YtMusicResponse};
 
@@ -63,22 +59,6 @@ impl YtMusicApi {
             .unwrap();
 
         Ok(YtMusicApi { client, context })
-    }
-
-    pub fn get_authorization_hash(&self, sapisid: &str, origin: &str) -> String {
-        let unix_timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let input = format!("{} {} {}", unix_timestamp, sapisid, origin);
-
-        let mut hasher = Sha1::new();
-        hasher.update(input);
-        let result = hasher.finalize();
-        let hash = hex::encode(&result);
-
-        let authorization = format!("SAPISIDHASH {}_{}", unix_timestamp, hash);
-        return authorization;
     }
 
     fn build_endpoint(&self, path: &str, ctoken: Option<&str>) -> String {
@@ -202,7 +182,7 @@ impl MusicApi for YtMusicApi {
             .make_request("browse/edit_playlist", &body, None)
             .await?;
         if !response.success() {
-            return Err(anyhow!("Error adding song to playlist"));
+            return Err(eyre!("Error adding song to playlist"));
         }
         Ok(())
     }

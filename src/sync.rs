@@ -1,6 +1,6 @@
 use crate::music_api::{DynMusicApi, MusicApi, Playlist};
 
-use anyhow::Result;
+use color_eyre::eyre::Result;
 use serde_json::json;
 use tracing::{warn, info};
 
@@ -20,7 +20,7 @@ pub async fn synchronize(
 
     // TODO: remove this
     // Delete all playlists
-    let mut dst_playlists = dst_api.get_playlists_full().await?;
+    let dst_playlists = dst_api.get_playlists_full().await?;
     for p in dst_playlists.iter() {
         dst_api.delete_playlist(&p.id).await?;
     }

@@ -1,16 +1,14 @@
 mod args;
 
-use std::str::FromStr;
-
 use args::{MusicPlatform, RootArgs};
 use sync_dis_boi::music_api::{DynMusicApi, MusicApi};
 use sync_dis_boi::spotify::SpotifyApi;
 use sync_dis_boi::sync::synchronize;
 use sync_dis_boi::yt_music::YtMusicApi;
 
-use anyhow::Result;
 use clap::Parser;
-use tracing::{debug, Level, info};
+use color_eyre::eyre::{eyre, Result};
+use tracing::{debug, info, Level};
 use tracing_subscriber::{filter::Targets, prelude::*};
 
 async fn parse_api(args: &RootArgs, platform: &MusicPlatform) -> Result<DynMusicApi> {
@@ -20,12 +18,12 @@ async fn parse_api(args: &RootArgs, platform: &MusicPlatform) -> Result<DynMusic
                 .ytmusic
                 .cookies
                 .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Missing cookies"))?;
+                .ok_or(eyre!("Missing cookies"))?;
             let secret = args
                 .ytmusic
                 .secret
                 .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Missing secret"))?;
+                .ok_or(eyre!("Missing secret"))?;
             Box::new(YtMusicApi::new(&cookies, &secret)?)
         }
         MusicPlatform::Spotify => {
@@ -33,12 +31,12 @@ async fn parse_api(args: &RootArgs, platform: &MusicPlatform) -> Result<DynMusic
                 .spotify
                 .client_id
                 .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Missing client ID"))?;
+                .ok_or(eyre!("Missing client ID"))?;
             let client_secret = args
                 .spotify
                 .client_secret
                 .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Missing client secret"))?;
+                .ok_or(eyre!("Missing client secret"))?;
             Box::new(SpotifyApi::new(&client_id, &client_secret).await?)
         }
     };
@@ -47,14 +45,19 @@ async fn parse_api(args: &RootArgs, platform: &MusicPlatform) -> Result<DynMusic
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    color_eyre::install()?;
+
     let args = RootArgs::parse();
     debug!("CMD arguments: {:?}", args);
-
 
     // Only shows logging for current crate, not sure if there is a cleaner way
     let level: Level = args.logging.clone().into();
     let filter = Targets::new().with_target("sync_dis_boi", Level::TRACE);
-    tracing_subscriber::fmt().with_max_level(level).finish().with(filter).init();
+    tracing_subscriber::fmt()
+        .with_max_level(level)
+        .finish()
+        .with(filter)
+        .init();
     debug!("Logging level: {}", level);
 
     info!("Starting SyncDisBoi ...");

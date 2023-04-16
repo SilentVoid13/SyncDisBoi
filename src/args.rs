@@ -1,6 +1,5 @@
 use clap::{Args, Parser, ValueEnum};
 use tracing::Level;
-use tracing_subscriber::filter::Targets;
 
 use std::path::PathBuf;
 

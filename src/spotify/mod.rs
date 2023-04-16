@@ -9,7 +9,7 @@ use crate::music_api::Songs;
 use crate::music_api::PLAYLIST_DESC;
 use crate::spotify::model::SpotifySearchResponse;
 
-use anyhow::{anyhow, Context, Result};
+use color_eyre::eyre::{eyre, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use reqwest::header::HeaderMap;
@@ -17,12 +17,11 @@ use reqwest::Response;
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use serde_json::json;
-use tracing::debug;
-use tracing::info;
-use tracing::warn;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::net::TcpListener;
+use tracing::debug;
+use tracing::warn;
 
 use self::model::SpotifyPageResponse;
 use self::model::SpotifyPlaylistResponse;
@@ -105,13 +104,13 @@ impl SpotifyApi {
         let data = String::from_utf8(buffer.to_vec())?;
         let splits: Vec<&str> = data.split_whitespace().collect();
         if splits.len() <= 1 {
-            return Err(anyhow!("Invalid spotify server callback"));
+            return Err(eyre!("Invalid spotify server callback"));
         }
         let url = format!("{}{}", SpotifyApi::REDIRECT_URI_HOST, splits[1]);
         let auth_code = reqwest::Url::parse(&url)?
             .query_pairs()
             .find(|pair| pair.0 == "code")
-            .context("Spotify server returned no autorization code")?
+            .ok_or(eyre!("Spotify server returned no autorization code"))?
             .1
             .to_string();
 
@@ -152,12 +151,13 @@ impl SpotifyApi {
         let headers = res.headers();
         let sleep_time = headers
             .get("Retry-After")
-            .context("No Retry-After header")?
-            .to_str()
-            .context("Invalid Retry-After header")?
-            .parse::<u64>()
-            .context("Invalid Retry-After header")?;
-        warn!("API rate limit reached, sleeping for {} seconds", sleep_time);
+            .ok_or(eyre!("Invalid Retry-After header"))?
+            .to_str()?
+            .parse::<u64>()?;
+        warn!(
+            "API rate limit reached, sleeping for {} seconds",
+            sleep_time
+        );
         tokio::time::sleep(Duration::from_secs(sleep_time)).await;
         Ok(())
     }
@@ -192,7 +192,7 @@ impl SpotifyApi {
                 .await;
         }
         if res.status() != StatusCode::OK && res.status() != StatusCode::CREATED {
-            return Err(anyhow!("Invalid response: {}", res.text().await?));
+            return Err(eyre!("Invalid response: {}", res.text().await?));
         }
         // TODO: change this
         let text = res.text().await?;
@@ -215,7 +215,7 @@ impl SpotifyApi {
             return self.delete_request::<T>(path, body).await;
         }
         if res.status() != StatusCode::OK && res.status() != StatusCode::CREATED {
-            return Err(anyhow!("Invalid response: {}", res.text().await?));
+            return Err(eyre!("Invalid response: {}", res.text().await?));
         }
         let text = res.text().await?;
         if text.is_empty() {

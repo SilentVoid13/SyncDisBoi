@@ -1,9 +1,9 @@
 use crate::{
-    music_api::{Album, Artist, Playlist, Playlists, Song, Songs, MusicApiType},
+    music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs},
     yt_music::model::YtMusicResponse,
 };
 
-use anyhow::{Context, Error, Result};
+use color_eyre::eyre::{eyre, Error, Result};
 
 pub fn parse_duration(duration_str: &str) -> Result<usize> {
     let multipliers = [1, 60, 3600];
@@ -13,7 +13,7 @@ pub fn parse_duration(duration_str: &str) -> Result<usize> {
         seconds += part.parse::<usize>()? * multipliers[i];
         i += 1;
     }
-    Ok(seconds*1000)
+    Ok(seconds * 1000)
 }
 
 impl TryInto<Playlists> for YtMusicResponse {
@@ -23,14 +23,14 @@ impl TryInto<Playlists> for YtMusicResponse {
         let mut playlists = vec![];
         for mtrir in self
             .get_mtrirs()
-            .context("Couldn't get response mtrirs")?
+            .ok_or(eyre!("No mtrirs"))?
             .iter()
             // Ignore the first "New Playlist" playlist
             // Ignore the second "Your Likes" playlist
             .skip(2)
         {
-            let id = mtrir.get_id().context("no playlist id")?;
-            let name = mtrir.get_name().context("no playlist name")?;
+            let id = mtrir.get_id().ok_or(eyre!("No playlist id"))?;
+            let name = mtrir.get_name().ok_or(eyre!("No playlist name"))?;
             let playlist = Playlist {
                 id,
                 name,
@@ -61,17 +61,19 @@ impl TryInto<Songs> for YtMusicResponse {
             // Ignore unavailable songs
             .filter(|item| item.playlist_item_data.is_some())
         {
-            let id = mrlir.get_id().context("no song id")?;
-            let set_id = mrlir.get_set_id().context("no song set_id")?;
+            let id = mrlir.get_id().ok_or(eyre!("No song id"))?;
+            let set_id = mrlir.get_set_id().ok_or(eyre!("No song set_id"))?;
 
-            let duration_str = mrlir.get_col_run_text(0, 0, false).context("no duration")?;
+            let duration_str = mrlir
+                .get_col_run_text(0, 0, false)
+                .ok_or(eyre!("No duration"))?;
             let duration = parse_duration(&duration_str)?;
 
             // fc0 = song title
             // fc1 = artists
             // fc2 = album
 
-            let name = mrlir.get_col_run_text(0, 0, true).context("no name")?;
+            let name = mrlir.get_col_run_text(0, 0, true).ok_or(eyre!("No name"))?;
             let album = mrlir.get_col_runs(2, true).and_then(|_| {
                 Some(Album {
                     id: mrlir.get_col_run_id(2, 0, true),
@@ -81,7 +83,7 @@ impl TryInto<Songs> for YtMusicResponse {
             let mut artists: Vec<Artist> = vec![];
             for run in mrlir
                 .get_col_runs(1, true)
-                .context("no flex col 1")?
+                .ok_or(eyre!("No flex col 1"))?
                 .iter()
                 .step_by(2)
             {

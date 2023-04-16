@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use anyhow::{Error, Result};
+use color_eyre::eyre::{Error, Result};
 
 use crate::music_api::{Album, Artist, Playlist, Playlists, Song, Songs, MusicApiType};
 
