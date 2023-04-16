@@ -165,17 +165,22 @@ impl MusicApi for YtMusicApi {
         Ok(songs.0)
     }
 
-    async fn add_songs_to_playlist(&self, playlist_id: &str, songs_ids: &[String]) -> Result<()> {
+    async fn add_songs_to_playlist(&self, playlist: &mut Playlist, songs: &[Song]) -> Result<()> {
+        let p_songs = playlist.songs.as_mut().ok_or(eyre!("Playlist doesn't exist"))?;
+        for song in songs {
+            p_songs.push(song.clone());
+        }
+
         let mut actions = vec![];
-        for song_id in songs_ids.iter() {
+        for song in songs.iter() {
             let action = json!({
                 "action": "ACTION_ADD_VIDEO",
-                "addedVideoId": song_id,
+                "addedVideoId": song.id,
             });
             actions.push(action);
         }
         let body = json!({
-            "playlistId": playlist_id,
+            "playlistId": playlist.id,
             "actions": actions,
         });
         let response: YtMusicPlaylistStatusResponse = self
@@ -190,12 +195,12 @@ impl MusicApi for YtMusicApi {
     async fn remove_songs_from_playlist(
         &self,
         _playlist: &mut Playlist,
-        _songs_ids: &[String],
+        _songs_ids: &[Song],
     ) -> Result<()> {
         todo!();
     }
 
-    async fn delete_playlist(&self, _playlist_id: &str) -> Result<()> {
+    async fn delete_playlist(&self, _playlist: Playlist) -> Result<()> {
         todo!();
     }
 
@@ -206,8 +211,6 @@ impl MusicApi for YtMusicApi {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[tokio::test]
     async fn test_ytmusic_to_spotify() {}
 }

@@ -1,5 +1,5 @@
-use color_eyre::eyre::Result;
 use async_trait::async_trait;
+use color_eyre::eyre::Result;
 use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use strsim::normalized_levenshtein;
@@ -32,13 +32,17 @@ pub trait MusicApi {
         Ok(playlists)
     }
 
-    async fn add_songs_to_playlist(&self, playlist_id: &str, songs_ids: &[String]) -> Result<()>;
+    async fn add_songs_to_playlist(
+        &self,
+        playlist: &mut Playlist,
+        songs: &[Song],
+    ) -> Result<()>;
     async fn remove_songs_from_playlist(
         &self,
         playlist: &mut Playlist,
-        songs_ids: &[String],
+        songs_ids: &[Song],
     ) -> Result<()>;
-    async fn delete_playlist(&self, playlist_id: &str) -> Result<()>;
+    async fn delete_playlist(&self, playlist: Playlist) -> Result<()>;
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>>;
 
@@ -52,7 +56,7 @@ pub trait MusicApi {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum MusicApiType {
     Spotify,
     YtMusic,
@@ -71,7 +75,7 @@ pub struct Playlist {
     pub songs: Option<Vec<Song>>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Song {
     pub source: MusicApiType,
     pub id: String,
@@ -149,7 +153,7 @@ impl PartialEq for Song {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Album {
     pub id: Option<String>,
     pub name: String,
@@ -161,7 +165,7 @@ impl Album {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Artist {
     pub id: Option<String>,
     pub name: String,

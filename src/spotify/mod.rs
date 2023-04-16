@@ -9,9 +9,9 @@ use crate::music_api::Songs;
 use crate::music_api::PLAYLIST_DESC;
 use crate::spotify::model::SpotifySearchResponse;
 
-use color_eyre::eyre::{eyre, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use color_eyre::eyre::{eyre, Result};
 use reqwest::header::HeaderMap;
 use reqwest::Response;
 use reqwest::StatusCode;
@@ -265,14 +265,18 @@ impl MusicApi for SpotifyApi {
         Ok(songs.0)
     }
 
-    async fn add_songs_to_playlist(&self, playlist_id: &str, songs_ids: &[String]) -> Result<()> {
-        // TODO: add Song object to Playlist
+    async fn add_songs_to_playlist(&self, playlist: &mut Playlist, songs: &[Song]) -> Result<()> {
+        let p_songs = playlist.songs.as_mut().ok_or(eyre!("Playlist doesn't exist"))?;
+        for song in songs {
+            p_songs.push(song.clone());
+        }
 
-        let uris: Vec<String> = songs_ids
+        let uris: Vec<String> = songs
             .iter()
-            .map(|id| format!("spotify:track:{}", id))
+            .map(|song| format!("spotify:track:{}", song.id))
             .collect();
-        let path = format!("/playlists/{}/tracks", playlist_id);
+
+        let path = format!("/playlists/{}/tracks", playlist.id);
         for u in uris.as_slice().chunks(100) {
             let body = json!({
                 "uris": u,
@@ -286,14 +290,14 @@ impl MusicApi for SpotifyApi {
     async fn remove_songs_from_playlist(
         &self,
         playlist: &mut Playlist,
-        songs_ids: &[String],
+        songs: &[Song],
     ) -> Result<()> {
         // TODO: remove Song object from Playlist
 
-        let uris: Vec<serde_json::Value> = songs_ids
+        let uris: Vec<serde_json::Value> = songs
             .iter()
-            .map(|id| {
-                let uri = format!("spotify:track:{}", id);
+            .map(|song| {
+                let uri = format!("spotify:track:{}", song.id);
                 json!({ "uri": uri })
             })
             .collect();
@@ -306,10 +310,10 @@ impl MusicApi for SpotifyApi {
         Ok(())
     }
 
-    async fn delete_playlist(&self, playlist_id: &str) -> Result<()> {
-        let path = format!("/playlists/{}/followers", playlist_id);
+    async fn delete_playlist(&self, playlist: Playlist) -> Result<()> {
+        let path = format!("/playlists/{}/followers", playlist.id);
         let body = json!({
-            "playlist_id": playlist_id,
+            "playlist_id": playlist.id,
         });
         self.delete_request::<()>(&path, body).await?;
         Ok(())

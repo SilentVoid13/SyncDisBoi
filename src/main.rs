@@ -60,9 +60,9 @@ async fn main() -> Result<()> {
         .init();
     debug!("Logging level: {}", level);
 
-    info!("Starting SyncDisBoi ...");
     let src_api = parse_api(&args, &args.src).await?;
     let dst_api = parse_api(&args, &args.dst).await?;
+
     synchronize(src_api, dst_api, args.stats).await?;
 
     Ok(())

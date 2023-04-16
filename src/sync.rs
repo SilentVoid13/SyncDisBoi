@@ -21,8 +21,8 @@ pub async fn synchronize(
     // TODO: remove this
     // Delete all playlists
     let dst_playlists = dst_api.get_playlists_full().await?;
-    for p in dst_playlists.iter() {
-        dst_api.delete_playlist(&p.id).await?;
+    for p in dst_playlists {
+        dst_api.delete_playlist(p).await?;
     }
     let mut dst_playlists: Vec<Playlist> = vec![];
 
@@ -42,7 +42,7 @@ pub async fn synchronize(
             }
         };
 
-        let dst_playlist = match dst_playlists
+        let mut dst_playlist = match dst_playlists
             .iter()
             .position(|p| p.name == src_playlist.name)
         {
@@ -53,7 +53,7 @@ pub async fn synchronize(
         // TODO: remove this
         let mut missing_songs = json!([]);
         let mut no_albums_songs = json!([]);
-        let mut dst_songs_ids = vec![];
+        let mut dst_songs = vec![];
         let mut success = 0;
         let mut total = 0;
 
@@ -77,7 +77,7 @@ pub async fn synchronize(
             let dst_song = dst_api.search_song(src_song).await?;
             if let Some(s) = dst_song {
                 if src_song.compare(&s) {
-                    dst_songs_ids.push(s.id);
+                    dst_songs.push(s);
                     success += 1;
                 } else {
                     // TODO: remove this
@@ -88,9 +88,9 @@ pub async fn synchronize(
                 missing_songs.as_array_mut().unwrap().push(json!(src_song));
             }
         }
-        if !dst_songs_ids.is_empty() {
+        if !dst_songs.is_empty() {
             dst_api
-                .add_songs_to_playlist(&dst_playlist.id, &dst_songs_ids)
+                .add_songs_to_playlist(&mut dst_playlist, &dst_songs)
                 .await?;
         }
 
