@@ -2,20 +2,20 @@
 
 SyncDisBoi is a simple, efficient playlist synchronizer between different
 music streaming services. It currently supports:
-- Youtube Music
-- Spotify
+- [Youtube Music](https://music.youtube.com/)
+- [Spotify](https://open.spotify.com/)
 
 This project is made for music lovers who want to maintain their playlists across different music streaming services.
 
-## Synchronization precision
+## Accuracy
 
-SyncDisBoi focuses on precision to ensure that each song on the source playlist matches accurately to the corresponding song on the destination playlist. This feature is particularly useful for users who prioritize maintaining the integrity of their playlists and avoid ending up with weird remixes during synchronization.
+SyncDisBoi focuses on synchronization accuracy, to ensure that each song on the source playlist matches accurately the corresponding song on the destination playlist. This feature is particularly useful for users who prioritize maintaining the integrity of their playlists and prevent ending up with weird remixes during synchronization.
 
 SyncDisBoi verifies the following properties to ensure that the two songs match:
 - Song name resemblance score ([Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance))
 - Album name resemblance score ([Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance))
 
-For Youtube Music, SyncDisBoi won't sync songs with no albums defined. That's because this means that the song is a video from Youtube and has no metadata that can be leveraged to accurately sync it.
+For Youtube Music, SyncDisBoi won't sync songs with no album metadata. That's because this means that the song is a video from Youtube and has no metadata that can be leveraged to accurately sync it.
 
 ## Flexibility
 
