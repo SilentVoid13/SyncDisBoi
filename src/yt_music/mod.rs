@@ -194,9 +194,17 @@ impl MusicApi for YtMusicApi {
 
     async fn remove_songs_from_playlist(
         &self,
-        _playlist: &mut Playlist,
-        _songs_ids: &[Song],
+        playlist: &mut Playlist,
+        songs: &[Song],
     ) -> Result<()> {
+        for song in songs {
+            playlist
+                .songs
+                .as_mut()
+                .ok_or(eyre!("Playlist doesn't exist"))?
+                .retain(|s| s != song);
+        }
+
         todo!();
     }
 

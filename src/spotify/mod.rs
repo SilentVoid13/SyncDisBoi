@@ -292,7 +292,13 @@ impl MusicApi for SpotifyApi {
         playlist: &mut Playlist,
         songs: &[Song],
     ) -> Result<()> {
-        // TODO: remove Song object from Playlist
+        for song in songs {
+            playlist
+                .songs
+                .as_mut()
+                .ok_or(eyre!("Playlist doesn't exist"))?
+                .retain(|s| s != song);
+        }
 
         let uris: Vec<serde_json::Value> = songs
             .iter()
