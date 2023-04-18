@@ -5,6 +5,8 @@ use crate::{
 
 use color_eyre::eyre::{eyre, Error, Result};
 
+use super::YtMusicApi;
+
 pub fn parse_duration(duration_str: &str) -> Result<usize> {
     let multipliers = [1, 60, 3600];
     let mut seconds = 0;
@@ -30,11 +32,12 @@ impl TryInto<Playlists> for YtMusicResponse {
             .skip(2)
         {
             let id = mtrir.get_id().ok_or(eyre!("No playlist id"))?;
+            let id = YtMusicApi::clean_playlist_id(&id);
             let name = mtrir.get_name().ok_or(eyre!("No playlist name"))?;
             let playlist = Playlist {
                 id,
                 name,
-                songs: None,
+                songs: vec![],
             };
             playlists.push(playlist);
         }

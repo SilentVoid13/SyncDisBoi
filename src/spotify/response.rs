@@ -54,7 +54,7 @@ impl TryInto<Playlist> for SpotifyPlaylistResponse {
         Ok(Playlist {
             id: self.id,
             name: self.name,
-            songs: None,
+            songs: vec![],
         })
     }
 }

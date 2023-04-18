@@ -420,6 +420,8 @@ pub struct ContinuationContents {
 }
 
 
+// Responses
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct YtMusicPlaylistCreateResponse {
@@ -428,11 +430,27 @@ pub struct YtMusicPlaylistCreateResponse {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct YtMusicPlaylistStatusResponse {
+pub struct YtMusicPlaylistEditResponse {
     pub status: String,
 }
-impl YtMusicPlaylistStatusResponse {
+impl YtMusicPlaylistEditResponse {
     pub fn success(&self) -> bool {
         self.status == "STATUS_SUCCEEDED"
     }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct YtMusicPlaylistDeleteResponse {
+    pub command: DeleteCommand,
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteCommand {
+    pub handle_playlist_deletion_command: HandlePlaylistDeletionCommand,
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct HandlePlaylistDeletionCommand {
+    pub playlist_id: String,
 }

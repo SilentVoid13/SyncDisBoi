@@ -31,16 +31,8 @@ pub async fn synchronize(
     let mut no_albums = json!({});
     let mut stats = json!({});
 
-    for src_playlist in src_playlists.iter().skip(5).filter(|p| p.songs.is_some()) {
+    for src_playlist in src_playlists.iter().skip(5).filter(|p| !p.songs.is_empty()) {
         info!("Synchronizing playlist \"{}\" ...", src_playlist.name);
-
-        let src_songs = match &src_playlist.songs {
-            Some(s) => s,
-            None => {
-                warn!("No songs in source playlist \"{}\".", src_playlist.name);
-                continue;
-            }
-        };
 
         let mut dst_playlist = match dst_playlists
             .iter()
@@ -57,11 +49,9 @@ pub async fn synchronize(
         let mut success = 0;
         let mut total = 0;
 
-        for src_song in src_songs.iter() {
-            if let Some(s) = dst_playlist.songs.as_ref() {
-                if s.contains(src_song) {
-                    continue;
-                }
+        for src_song in src_playlist.songs.iter() {
+            if dst_playlist.songs.contains(src_song) {
+                continue;
             }
 
             if src_song.album.is_none() {

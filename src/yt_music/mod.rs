@@ -2,17 +2,17 @@ pub mod model;
 mod response;
 
 use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
-use crate::yt_music::model::YtMusicPlaylistCreateResponse;
+use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse};
 
-use color_eyre::eyre::{eyre, Result};
 use async_trait::async_trait;
+use color_eyre::eyre::{eyre, Result};
 use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use std::fmt::Write;
 use std::path::PathBuf;
 
-use self::model::{YtMusicContinuationResponse, YtMusicPlaylistStatusResponse, YtMusicResponse};
+use self::model::{YtMusicContinuationResponse, YtMusicPlaylistEditResponse, YtMusicResponse};
 
 pub struct YtMusicApi {
     client: reqwest::Client,
@@ -120,6 +120,13 @@ impl YtMusicApi {
         //let obj = res.json().await?;
         Ok(obj)
     }
+
+    pub fn clean_playlist_id(id: &str) -> String {
+        if id.starts_with("VL") {
+            return id[2..].to_string();
+        }
+        id.to_string()
+    }
 }
 
 #[async_trait]
@@ -136,10 +143,11 @@ impl MusicApi for YtMusicApi {
         });
         let response: YtMusicPlaylistCreateResponse =
             self.make_request("playlist/create", &body, None).await?;
+        let id = YtMusicApi::clean_playlist_id(&response.playlist_id);
         Ok(Playlist {
-            id: response.playlist_id,
+            id: id,
             name: name.to_string(),
-            songs: None,
+            songs: vec![],
         })
     }
 
@@ -166,9 +174,8 @@ impl MusicApi for YtMusicApi {
     }
 
     async fn add_songs_to_playlist(&self, playlist: &mut Playlist, songs: &[Song]) -> Result<()> {
-        let p_songs = playlist.songs.as_mut().ok_or(eyre!("Playlist doesn't exist"))?;
         for song in songs {
-            p_songs.push(song.clone());
+            playlist.songs.push(song.clone());
         }
 
         let mut actions = vec![];
@@ -183,7 +190,7 @@ impl MusicApi for YtMusicApi {
             "playlistId": playlist.id,
             "actions": actions,
         });
-        let response: YtMusicPlaylistStatusResponse = self
+        let response: YtMusicPlaylistEditResponse = self
             .make_request("browse/edit_playlist", &body, None)
             .await?;
         if !response.success() {
@@ -198,18 +205,38 @@ impl MusicApi for YtMusicApi {
         songs: &[Song],
     ) -> Result<()> {
         for song in songs {
-            playlist
-                .songs
-                .as_mut()
-                .ok_or(eyre!("Playlist doesn't exist"))?
-                .retain(|s| s != song);
+            playlist.songs.retain(|s| s != song);
         }
-
-        todo!();
+        let mut actions = vec![];
+        for song in songs.iter() {
+            let action = json!({
+                "setVideoId": song.sid.as_ref().ok_or(eyre!("Song setVideoId not found"))?,
+                "removedVideoId": song.id,
+                "action": "ACTION_REMOVE_VIDEO",
+            });
+            actions.push(action);
+        }
+        let body = json!({
+            "playlistId": playlist.id,
+            "actions": actions,
+        });
+        let response = self
+            .make_request::<YtMusicPlaylistEditResponse>("browse/edit_playlist", &body, None)
+            .await?;
+        if response.success() {
+            Ok(())
+        } else {
+            Err(eyre!("Error removing song from playlist"))
+        }
     }
 
-    async fn delete_playlist(&self, _playlist: Playlist) -> Result<()> {
-        todo!();
+    async fn delete_playlist(&self, playlist: Playlist) -> Result<()> {
+        let body = json!({
+            "playlistId": playlist.id,
+        });
+        self.make_request::<YtMusicPlaylistDeleteResponse>("playlist/delete", &body, None)
+            .await?;
+        Ok(())
     }
 
     async fn search_song(&self, _song: &Song) -> Result<Option<Song>> {

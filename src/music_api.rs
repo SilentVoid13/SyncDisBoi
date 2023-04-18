@@ -26,7 +26,7 @@ pub trait MusicApi {
         }
         let results = try_join_all(requests).await?;
         for (i, songs) in results.into_iter().enumerate() {
-            playlists[i].songs = Some(songs);
+            playlists[i].songs = songs;
         }
 
         Ok(playlists)
@@ -72,7 +72,7 @@ pub struct Songs(pub Vec<Song>);
 pub struct Playlist {
     pub id: String,
     pub name: String,
-    pub songs: Option<Vec<Song>>,
+    pub songs: Vec<Song>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]

@@ -266,9 +266,8 @@ impl MusicApi for SpotifyApi {
     }
 
     async fn add_songs_to_playlist(&self, playlist: &mut Playlist, songs: &[Song]) -> Result<()> {
-        let p_songs = playlist.songs.as_mut().ok_or(eyre!("Playlist doesn't exist"))?;
         for song in songs {
-            p_songs.push(song.clone());
+            playlist.songs.push(song.clone());
         }
 
         let uris: Vec<String> = songs
@@ -295,8 +294,6 @@ impl MusicApi for SpotifyApi {
         for song in songs {
             playlist
                 .songs
-                .as_mut()
-                .ok_or(eyre!("Playlist doesn't exist"))?
                 .retain(|s| s != song);
         }
 
