@@ -2,7 +2,9 @@ use crate::music_api::{DynMusicApi, MusicApi, Playlist};
 
 use color_eyre::eyre::Result;
 use serde_json::json;
-use tracing::{warn, info};
+use tracing::{info, warn};
+
+const SKIPPED_PLAYLISTS: [&str; 3] = ["Your Likes", "New playlist", "My Supermix"];
 
 pub async fn synchronize(
     src_api: DynMusicApi,
@@ -20,18 +22,23 @@ pub async fn synchronize(
 
     // TODO: remove this
     // Delete all playlists
+    info!("Deleting all playlists on destination ...");
     let dst_playlists = dst_api.get_playlists_full().await?;
     for p in dst_playlists {
         dst_api.delete_playlist(p).await?;
     }
     let mut dst_playlists: Vec<Playlist> = vec![];
+    info!("Finished");
 
     // TODO: remove this
     let mut missing_output = json!({});
     let mut no_albums = json!({});
     let mut stats = json!({});
 
-    for src_playlist in src_playlists.iter().skip(5).filter(|p| !p.songs.is_empty()) {
+    for src_playlist in src_playlists
+        .iter()
+        .filter(|p| !SKIPPED_PLAYLISTS.contains(&p.name.as_str()) && !p.songs.is_empty())
+    {
         info!("Synchronizing playlist \"{}\" ...", src_playlist.name);
 
         let mut dst_playlist = match dst_playlists
@@ -59,7 +66,10 @@ pub async fn synchronize(
                     .as_array_mut()
                     .unwrap()
                     .push(json!(src_song));
-                warn!("No album metadata for source song, skipping: {}", src_song.name);
+                warn!(
+                    "No album metadata for source song, skipping: {}",
+                    src_song.name
+                );
                 continue;
             }
             total += 1;

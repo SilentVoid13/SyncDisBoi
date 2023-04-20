@@ -231,6 +231,7 @@ impl MusicApi for YtMusicApi {
     }
 
     async fn delete_playlist(&self, playlist: Playlist) -> Result<()> {
+        println!("Deleting playlist id {}, name: {}", playlist.id, playlist.name);
         let body = json!({
             "playlistId": playlist.id,
         });
@@ -239,8 +240,33 @@ impl MusicApi for YtMusicApi {
         Ok(())
     }
 
-    async fn search_song(&self, _song: &Song) -> Result<Option<Song>> {
+    async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
+        let mut query = song.name.clone();
+        for artist in song.artists.iter() {
+            query.push_str(&format!(" {}", artist.name));
+        }
+        if let Some(album) = &song.album {
+            query.push_str(&format!(" {}", album.name));
+        }
+        let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
+        let params = format!("EgWKAQII{}", ignore_spelling);
+
+        let body = json!({
+            "query": query,
+            "params": params,
+        });
+
+        let response = self
+            .make_request::<YtMusicResponse>("search", &body, None)
+            .await?;
         todo!();
+        /*
+        if let Ok(s) = response.try_into() {
+            Ok(Some(s))
+        } else {
+            Ok(None)
+        }
+        */
     }
 }
 
