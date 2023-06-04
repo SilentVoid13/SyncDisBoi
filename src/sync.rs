@@ -20,15 +20,17 @@ pub async fn synchronize(
     //let src_playlists: Playlists = serde_json::from_str(&std::fs::read_to_string("src_playlists.json").unwrap()).unwrap();
     //let src_playlists = src_playlists.0;
 
+    let mut dst_playlists = dst_api.get_playlists_full().await?;
     // TODO: remove this
     // Delete all playlists
+    /*
     info!("Deleting all playlists on destination ...");
-    let dst_playlists = dst_api.get_playlists_full().await?;
     for p in dst_playlists {
         dst_api.delete_playlist(p).await?;
     }
     let mut dst_playlists: Vec<Playlist> = vec![];
     info!("Finished");
+    */
 
     // TODO: remove this
     let mut missing_output = json!({});
@@ -84,6 +86,7 @@ pub async fn synchronize(
                     missing_songs.as_array_mut().unwrap().push(json!(src_song));
                 }
             } else {
+                info!("Song not found on destination: {}", src_song.name);
                 // TODO: remove this
                 missing_songs.as_array_mut().unwrap().push(json!(src_song));
             }

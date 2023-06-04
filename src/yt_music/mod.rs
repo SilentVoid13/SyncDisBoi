@@ -1,7 +1,7 @@
 pub mod model;
 mod response;
 
-use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
+use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, Songs2, PLAYLIST_DESC};
 use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse};
 
 use async_trait::async_trait;
@@ -11,6 +11,7 @@ use serde::de::DeserializeOwned;
 use serde_json::json;
 use std::fmt::Write;
 use std::path::PathBuf;
+use tracing::info;
 
 use self::model::{YtMusicContinuationResponse, YtMusicPlaylistEditResponse, YtMusicResponse};
 
@@ -46,7 +47,6 @@ impl YtMusicApi {
         headers.insert("origin", origin.parse()?);
         headers.insert("user-agent",  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.102 Safari/537.36".parse()?);
         headers.insert("x-goog-authuser", "0".parse()?);
-        headers.insert("x-goog-pageid", "100654875389698742898".parse()?);
         headers.insert(
             "x-goog-visitor-id",
             "CgtFMUR1cU1wVmhUdyiTiNChBg%3D%3D".parse()?,
@@ -231,7 +231,6 @@ impl MusicApi for YtMusicApi {
     }
 
     async fn delete_playlist(&self, playlist: Playlist) -> Result<()> {
-        println!("Deleting playlist id {}, name: {}", playlist.id, playlist.name);
         let body = json!({
             "playlistId": playlist.id,
         });
@@ -241,15 +240,17 @@ impl MusicApi for YtMusicApi {
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
-        let mut query = song.name.clone();
+        let mut query = song.clean_name();
         for artist in song.artists.iter() {
-            query.push_str(&format!(" {}", artist.name));
+            query.push_str(&format!(" {}", artist.clean_name()));
         }
         if let Some(album) = &song.album {
-            query.push_str(&format!(" {}", album.name));
+            query.push_str(&format!(" {}", album.clean_name()));
         }
         let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
-        let params = format!("EgWKAQII{}", ignore_spelling);
+        let params = format!("EgWKAQI{}{}", "I", ignore_spelling);
+
+        info!("Searching for song: {}", query);
 
         let body = json!({
             "query": query,
@@ -259,14 +260,15 @@ impl MusicApi for YtMusicApi {
         let response = self
             .make_request::<YtMusicResponse>("search", &body, None)
             .await?;
-        todo!();
-        /*
-        if let Ok(s) = response.try_into() {
-            Ok(Some(s))
-        } else {
-            Ok(None)
+
+        let mut res_songs: Songs2 = response.try_into()?;
+        if !res_songs.0.is_empty() {
+            let res_song = res_songs.0.remove(0);
+            if song.compare(&res_song) {
+                return Ok(Some(res_song));
+            }
         }
-        */
+        return Ok(None)
     }
 }
 

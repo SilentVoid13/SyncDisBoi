@@ -5,9 +5,10 @@ use serde::Deserialize;
 pub struct YtMusicResponse {
     pub contents: ResponseContent,
 }
+
 impl YtMusicResponse {
     pub fn merge(&mut self, other: &mut YtMusicContinuationResponse) -> Option<()> {
-        if let Some(gr) = self.get_grid_renderer () {
+        if let Some(gr) = self.get_grid_renderer() {
             Some(
                 gr.items.append(
                     &mut other
@@ -25,7 +26,7 @@ impl YtMusicResponse {
                         .music_playlist_shelf_continuation
                         .as_mut()?
                         .contents
-                        .as_mut()?
+                        .as_mut()?,
                 ),
             )
         } else {
@@ -34,16 +35,26 @@ impl YtMusicResponse {
     }
 
     pub fn get_mrlirs(&mut self) -> Option<Vec<&MusicResponsiveListItemRenderer>> {
-        Some(
-            self.get_section_renderer_content()?
-                .music_playlist_shelf_renderer
-                .as_ref()?
-                .contents
-                .as_ref()?
-                .iter()
-                .map(|item| &item.music_responsive_list_item_renderer)
-                .collect(),
-        )
+        let section_renderer_content = self.get_section_renderer_content()?;
+        if let Some(mpsr) = &mut section_renderer_content.music_playlist_shelf_renderer {
+            Some(
+                mpsr.contents
+                    .as_ref()?
+                    .iter()
+                    .map(|item| &item.music_responsive_list_item_renderer)
+                    .collect(),
+            )
+        } else if let Some(msr) = &mut section_renderer_content.music_shelf_renderer {
+            Some(
+                msr.contents
+                    .as_ref()?
+                    .iter()
+                    .map(|item| &item.music_responsive_list_item_renderer)
+                    .collect(),
+            )
+        } else {
+            None
+        }
     }
 
     pub fn get_mtrirs(&mut self) -> Option<Vec<&MusicTwoRowItemRenderer>> {
@@ -57,15 +68,31 @@ impl YtMusicResponse {
     }
 
     pub fn get_section_renderer_content(&mut self) -> Option<&mut SectionRendererContent> {
-        self.contents.single_column_browse_results_renderer.tabs[0]
-            .tab_renderer
-            .content
-            .section_list_renderer
-            .contents
-            .iter_mut()
-            .find(|item| {
-                item.music_playlist_shelf_renderer.is_some() || item.grid_renderer.is_some()
-            })
+        if let Some(sr) = self.contents.single_column_browse_results_renderer.as_mut() {
+            sr.tabs[0]
+                .tab_renderer
+                .content
+                .section_list_renderer
+                .contents
+                .iter_mut()
+                .find(|item| {
+                    item.music_playlist_shelf_renderer.is_some() || item.grid_renderer.is_some()
+                })
+        } else if let Some(tr) = self.contents.tabbed_search_results_renderer.as_mut() {
+            tr.tabs[0]
+                .tab_renderer
+                .content
+                .section_list_renderer
+                .contents
+                .iter_mut()
+                .find(|item| {
+                    item.music_playlist_shelf_renderer.is_some()
+                        || item.grid_renderer.is_some()
+                        || item.music_shelf_renderer.is_some()
+                })
+        } else {
+            None
+        }
     }
 
     pub fn get_grid_renderer(&mut self) -> Option<&mut GridRenderer> {
@@ -114,7 +141,8 @@ pub struct Content<T> {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponseContent {
-    pub single_column_browse_results_renderer: SingleColumnBrowseResultsRenderer,
+    pub single_column_browse_results_renderer: Option<SingleColumnBrowseResultsRenderer>,
+    pub tabbed_search_results_renderer: Option<TabbedSearchResultsRenderer>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -135,9 +163,9 @@ pub struct TabRendererContent {
 #[serde(rename_all = "camelCase")]
 pub struct SectionRendererContent {
     pub music_playlist_shelf_renderer: Option<MusicPlaylistShelfRenderer>,
-    // Old response
     //pub item_section_renderer: Option<ContentsSingle<ItemSectionRendererContent>>,
     pub grid_renderer: Option<GridRenderer>,
+    pub music_shelf_renderer: Option<MusicPlaylistShelfRenderer>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -161,18 +189,16 @@ pub struct MusicPlaylistShelfRendererContent {
 pub struct MusicResponsiveListItemRenderer {
     pub menu: Option<Menu>,
     pub overlay: Option<Overlay>,
-    pub flex_columns: [FlexColumn; 3],
+    pub flex_columns: Vec<FlexColumn>,
     pub fixed_columns: Option<Vec<FixedColumn>>,
     pub playlist_item_data: Option<PlaylistItemData>,
 }
 impl MusicResponsiveListItemRenderer {
     pub fn get_set_id(&self) -> Option<String> {
-        Some(
-            self.playlist_item_data
-                .as_ref()?
-                .playlist_set_video_id
-                .clone(),
-        )
+        self.playlist_item_data
+            .as_ref()?
+            .playlist_set_video_id
+            .clone()
     }
 
     pub fn get_id(&self) -> Option<String> {
@@ -189,16 +215,18 @@ impl MusicResponsiveListItemRenderer {
 
     pub fn get_col_runs(&self, idx: usize, flex: bool) -> Option<&Vec<Run>> {
         let mrlifcr = if flex {
-            &self.flex_columns.get(idx)?.music_responsive_list_item_flex_column_renderer
+            &self
+                .flex_columns
+                .get(idx)?
+                .music_responsive_list_item_flex_column_renderer
         } else {
-            &self.fixed_columns.as_ref()?.get(idx)?.music_responsive_list_item_fixed_column_renderer
+            &self
+                .fixed_columns
+                .as_ref()?
+                .get(idx)?
+                .music_responsive_list_item_fixed_column_renderer
         };
-        Some(
-            mrlifcr
-                .text
-                .runs
-                .as_ref()?,
-        )
+        Some(mrlifcr.text.runs.as_ref()?)
     }
 
     #[allow(dead_code)]
@@ -387,14 +415,14 @@ pub struct PlayNavigationEndpoint {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchEndpoint {
-    pub playlist_id: String,
+    pub playlist_id: Option<String>,
     pub video_id: String,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaylistItemData {
-    pub playlist_set_video_id: String,
+    pub playlist_set_video_id: Option<String>,
     pub video_id: String,
 }
 
@@ -409,7 +437,9 @@ impl YtMusicContinuationResponse {
             g.get_continuation()
         } else if let Some(m) = &self.continuation_contents.music_playlist_shelf_continuation {
             m.get_continuation()
-        } else { None }
+        } else {
+            None
+        }
     }
 }
 #[derive(Deserialize, Debug)]
@@ -418,7 +448,6 @@ pub struct ContinuationContents {
     pub grid_continuation: Option<GridRenderer>,
     pub music_playlist_shelf_continuation: Option<MusicPlaylistShelfRenderer>,
 }
-
 
 // Responses
 
@@ -453,4 +482,10 @@ pub struct DeleteCommand {
 #[serde(rename_all = "camelCase")]
 pub struct HandlePlaylistDeletionCommand {
     pub playlist_id: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TabbedSearchResultsRenderer {
+    pub tabs: [Tab; 1],
 }

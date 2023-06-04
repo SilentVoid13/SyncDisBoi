@@ -1,11 +1,10 @@
-use crate::{
-    music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs},
-    yt_music::model::YtMusicResponse,
-};
+use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs, Songs2};
 
 use color_eyre::eyre::{eyre, Error, Result};
+use tracing::debug;
+use regex::Regex;
 
-use super::YtMusicApi;
+use super::{model::YtMusicResponse, YtMusicApi};
 
 pub fn parse_duration(duration_str: &str) -> Result<usize> {
     let multipliers = [1, 60, 3600];
@@ -109,6 +108,91 @@ impl TryInto<Songs> for YtMusicResponse {
         }
 
         let songs: Songs = Songs(songs_vec);
+        Ok(songs)
+    }
+}
+
+impl TryInto<Songs2> for YtMusicResponse {
+    type Error = Error;
+
+    fn try_into(mut self) -> Result<Songs2, Self::Error> {
+        let mut songs_vec = vec![];
+
+        let mrlirs = match self.get_mrlirs() {
+            Some(x) => x,
+            None => return Ok(Songs2(songs_vec)),
+        };
+
+        for mrlir in mrlirs
+            .iter()
+            .filter(|item| item.playlist_item_data.is_some())
+        {
+            let id = mrlir.get_id().ok_or(eyre!("No song id"))?;
+            let name = mrlir.get_col_run_text(0, 0, true).ok_or(eyre!("No name"))?;
+
+            // fc0 = song title
+            // fc1 = artists, album, duration
+
+            let mut album = None;
+            let mut artists: Vec<Artist> = vec![];
+            let mut duration = 0;
+            let re_duration = Regex::new(r"^(\d+:)*\d+:\d+$").unwrap();
+
+            for run in mrlir
+                .get_col_runs(1, true)
+                .ok_or(eyre!("No flex col 1"))?
+                .iter()
+                .step_by(2)
+            {
+                let text = run.get_text();
+                if let Some(nav) = &run.navigation_endpoint {
+                    let id = nav
+                        .browse_endpoint
+                        .as_ref()
+                        .ok_or(eyre!("No browse endpoint"))?
+                        .browse_id
+                        .clone();
+                    if id.starts_with("MPRE") {
+                        album = Some(Album {
+                            id: Some(id),
+                            name: text,
+                        });
+                    } else {
+                        artists.push(Artist {
+                            id: Some(id),
+                            name: text,
+                        });
+                    }
+                } else {
+                    if re_duration.is_match(&text) {
+                        duration = parse_duration(&text)?;
+                    } else {
+                        debug!("Artist without id: {}", text);
+                        artists.push(Artist {
+                            id: None,
+                            name: text,
+                        });
+                    }
+                }
+            }
+            if album.is_none() || artists.is_empty() || duration == 0 {
+                debug!("Skipping song with missing data: {}", name);
+                continue;
+            }
+            let song = Song {
+                source: MusicApiType::YtMusic,
+                id,
+                sid: None,
+                name,
+                artists,
+                album,
+                duration: 0,
+            };
+
+            songs_vec.push(song);
+        }
+
+        let songs = Songs2(songs_vec);
         Ok(songs)
     }
 }

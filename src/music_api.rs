@@ -67,6 +67,9 @@ pub struct Playlists(pub Vec<Playlist>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Songs(pub Vec<Song>);
+// TODO: Remove this
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Songs2(pub Vec<Song>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Playlist {
