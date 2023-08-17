@@ -26,11 +26,12 @@ pub async fn synchronize(
     /*
     info!("Deleting all playlists on destination ...");
     for p in dst_playlists {
+        info!("Deleting playlist \"{}\" ...", p.name);
         dst_api.delete_playlist(p).await?;
     }
     let mut dst_playlists: Vec<Playlist> = vec![];
-    info!("Finished");
     */
+    info!("Finished");
 
     // TODO: remove this
     let mut missing_output = json!({});

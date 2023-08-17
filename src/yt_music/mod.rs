@@ -261,9 +261,9 @@ impl MusicApi for YtMusicApi {
             .make_request::<YtMusicResponse>("search", &body, None)
             .await?;
 
-        let mut res_songs: Songs2 = response.try_into()?;
-        if !res_songs.0.is_empty() {
-            let res_song = res_songs.0.remove(0);
+        let res_songs: Songs2 = response.try_into()?;
+        // iterate over top 3 results
+        for res_song in res_songs.0.into_iter().take(3) {
             if song.compare(&res_song) {
                 return Ok(Some(res_song));
             }
