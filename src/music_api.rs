@@ -32,11 +32,7 @@ pub trait MusicApi {
         Ok(playlists)
     }
 
-    async fn add_songs_to_playlist(
-        &self,
-        playlist: &mut Playlist,
-        songs: &[Song],
-    ) -> Result<()>;
+    async fn add_songs_to_playlist(&self, playlist: &mut Playlist, songs: &[Song]) -> Result<()>;
     async fn remove_songs_from_playlist(
         &self,
         playlist: &mut Playlist,
@@ -153,6 +149,27 @@ impl Song {
 impl PartialEq for Song {
     fn eq(&self, other: &Self) -> bool {
         self.compare(other)
+    }
+}
+
+impl std::fmt::Display for Song {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let artists = self
+            .artists
+            .iter()
+            .map(|a| a.name.as_str())
+            .collect::<Vec<&str>>()
+            .join(" ");
+        let artists = String::from(" - ") + &artists;
+        let album = if let Some(a) = &self.album {
+            format!(" ({})", a.name)
+        } else {
+            String::new()
+        };
+        f.write_fmt(format_args!(
+            "{}{}{}",
+            self.name, album, artists
+        ))
     }
 }
 

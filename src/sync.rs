@@ -1,14 +1,17 @@
-use crate::music_api::{DynMusicApi, MusicApi, Playlist};
+use std::path::Path;
+
+use crate::music_api::{DynMusicApi, MusicApi, Playlist, Playlists};
 
 use color_eyre::eyre::Result;
 use serde_json::json;
-use tracing::{info, warn};
+use tracing::{info, debug};
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
-const SKIPPED_PLAYLISTS: [&str; 8] = [
+const SKIPPED_PLAYLISTS: [&str; 9] = [
     "New playlist",
     "Your Likes",
     "My Supermix",
+    "Discover Mix",
     "Liked Songs",
     "Discover Weekly",
     "Big Room House Mix",
@@ -19,31 +22,44 @@ const SKIPPED_PLAYLISTS: [&str; 8] = [
 pub async fn synchronize(
     src_api: DynMusicApi,
     dst_api: Box<dyn MusicApi + Sync>,
-    stats: bool,
+    debug: bool,
 ) -> Result<()> {
-    // TODO: remove this
-    info!("Retrieving src_playlist songs...");
-    let src_playlists = src_api.get_playlists_full().await?;
-    let val = json!(src_playlists);
-    std::fs::write("json/src_playlists.json", serde_json::to_string(&val).unwrap()).unwrap();
+    let src_playlists = if debug && Path::new("json/src_playlists.json").exists() {
+        let src_playlists: Playlists =
+            serde_json::from_str(&std::fs::read_to_string("json/src_playlists.json").unwrap())
+                .unwrap();
+        let src_playlists = src_playlists.0;
+        src_playlists
+    } else {
+        info!("Retrieving src_playlist songs...");
+        let src_playlists = src_api.get_playlists_full().await?;
+        // Saving output to save time for the next run
+        if debug {
+            info!("Saving src_playlists output");
+            let val = json!(src_playlists);
+            std::fs::write(
+                "json/src_playlists.json",
+                serde_json::to_string(&val).unwrap(),
+            )
+            .unwrap();
+        }
+        src_playlists
+    };
 
-    // TODO: remove this
-    //let src_playlists: Playlists = serde_json::from_str(&std::fs::read_to_string("json/src_playlists.json").unwrap()).unwrap();
-    //let src_playlists = src_playlists.0;
-
-    let dst_playlists = dst_api.get_playlists_full().await?;
-
-    // TODO: remove this
-    // Delete all playlists
-    info!("Deleting all playlists on destination ...");
-    for p in dst_playlists.into_iter().filter(|p| !SKIPPED_PLAYLISTS.contains(&p.name.as_str())) {
-        info!("Deleting playlist \"{}\" ...", p.name);
-        dst_api.delete_playlist(p).await?;
+    let mut dst_playlists = dst_api.get_playlists_full().await?;
+    // Delete all dst_playlists to always make a fresh start
+    if debug {
+        info!("Deleting all playlists on destination ...");
+        for p in dst_playlists
+            .into_iter()
+            .filter(|p| !SKIPPED_PLAYLISTS.contains(&p.name.as_str()))
+        {
+            info!("Deleting playlist \"{}\" ...", p.name);
+            dst_api.delete_playlist(p).await?;
+        }
+        dst_playlists = vec![];
     }
-    let mut dst_playlists: Vec<Playlist> = vec![];
-    info!("Finished deletion");
 
-    // TODO: remove this
     let mut missing_output = json!({});
     let mut no_albums = json!({});
     let mut stats = json!({});
@@ -62,9 +78,9 @@ pub async fn synchronize(
             None => dst_api.create_playlist(&src_playlist.name, false).await?,
         };
 
-        // TODO: remove this
         let mut missing_songs = json!([]);
         let mut no_albums_songs = json!([]);
+
         let mut dst_songs = vec![];
         let mut success = 0;
         let mut total = 0;
@@ -75,16 +91,19 @@ pub async fn synchronize(
             }
 
             if src_song.album.is_none() {
-                no_albums_songs
-                    .as_array_mut()
-                    .unwrap()
-                    .push(json!(src_song));
-                warn!(
+                debug!(
                     "No album metadata for source song, skipping: {}",
-                    src_song.name
+                    src_song
                 );
+                if debug {
+                    no_albums_songs
+                        .as_array_mut()
+                        .unwrap()
+                        .push(json!(src_song));
+                }
                 continue;
             }
+
             total += 1;
 
             let dst_song = dst_api.search_song(src_song).await?;
@@ -93,13 +112,16 @@ pub async fn synchronize(
                     dst_songs.push(s);
                     success += 1;
                 } else {
-                    // TODO: remove this
-                    missing_songs.as_array_mut().unwrap().push(json!(src_song));
+                    debug!("Invalid match found for song {}", src_song);
+                    if debug {
+                        missing_songs.as_array_mut().unwrap().push(json!(src_song));
+                    }
                 }
             } else {
-                info!("Song not found on destination: {}", src_song.name);
-                // TODO: remove this
-                missing_songs.as_array_mut().unwrap().push(json!(src_song));
+                debug!("No match found for song: {}", src_song);
+                if debug {
+                    missing_songs.as_array_mut().unwrap().push(json!(src_song));
+                }
             }
         }
         if !dst_songs.is_empty() {
@@ -112,25 +134,31 @@ pub async fn synchronize(
             total = 1;
         }
         let conversion_rate = success as f64 / total as f64;
-        stats.as_object_mut().unwrap().insert(
-            src_playlist.name.clone(),
-            serde_json::to_value(conversion_rate).unwrap(),
+        info!(
+            "Finished converting playlist, conversion rate: {}",
+            conversion_rate
         );
-        std::fs::write("json/stats.json", stats.to_string()).unwrap();
 
-        // TODO: remove this
-        if !missing_songs.as_array().unwrap().is_empty() {
-            missing_output
-                .as_object_mut()
-                .unwrap()
-                .insert(src_playlist.name.clone(), missing_songs);
-            no_albums
-                .as_object_mut()
-                .unwrap()
-                .insert(src_playlist.name.clone(), no_albums_songs);
+        if debug {
+            stats.as_object_mut().unwrap().insert(
+                src_playlist.name.clone(),
+                serde_json::to_value(conversion_rate).unwrap(),
+            );
+            std::fs::write("json/stats.json", stats.to_string()).unwrap();
 
-            std::fs::write("json/missing.json", missing_output.to_string()).unwrap();
-            std::fs::write("json/no_albums.json", no_albums.to_string()).unwrap();
+            if !missing_songs.as_array().unwrap().is_empty() {
+                missing_output
+                    .as_object_mut()
+                    .unwrap()
+                    .insert(src_playlist.name.clone(), missing_songs);
+                no_albums
+                    .as_object_mut()
+                    .unwrap()
+                    .insert(src_playlist.name.clone(), no_albums_songs);
+
+                std::fs::write("json/missing.json", missing_output.to_string()).unwrap();
+                std::fs::write("json/no_albums.json", no_albums.to_string()).unwrap();
+            }
         }
     }
 

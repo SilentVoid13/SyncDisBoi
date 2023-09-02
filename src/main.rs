@@ -19,7 +19,7 @@ async fn parse_api(args: &RootArgs, platform: &MusicPlatform) -> Result<DynMusic
                 .headers
                 .as_ref()
                 .ok_or(eyre!("Missing headers file"))?;
-            Box::new(YtMusicApi::new(&headers)?)
+            Box::new(YtMusicApi::new(&headers, args.debug)?)
         }
         MusicPlatform::Spotify => {
             let client_id = args
@@ -32,7 +32,7 @@ async fn parse_api(args: &RootArgs, platform: &MusicPlatform) -> Result<DynMusic
                 .client_secret
                 .as_ref()
                 .ok_or(eyre!("Missing client secret"))?;
-            Box::new(SpotifyApi::new(&client_id, &client_secret).await?)
+            Box::new(SpotifyApi::new(&client_id, &client_secret, args.debug).await?)
         }
     };
     Ok(api)
@@ -43,7 +43,6 @@ async fn main() -> Result<()> {
     color_eyre::install()?;
 
     let args = RootArgs::parse();
-    debug!("CMD arguments: {:?}", args);
 
     // Only shows logging for current crate, not sure if there is a cleaner way
     let level: Level = args.logging.clone().into();
@@ -58,7 +57,7 @@ async fn main() -> Result<()> {
     let src_api = parse_api(&args, &args.src).await?;
     let dst_api = parse_api(&args, &args.dst).await?;
 
-    synchronize(src_api, dst_api, args.stats).await?;
+    synchronize(src_api, dst_api, args.debug).await?;
 
     Ok(())
 }

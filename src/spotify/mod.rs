@@ -46,7 +46,7 @@ impl SpotifyApi {
         "playlist-modify-private",
     ];
 
-    pub async fn new(client_id: &str, client_secret: &str) -> Result<Self> {
+    pub async fn new(client_id: &str, client_secret: &str, debug: bool) -> Result<Self> {
         let auth_url = SpotifyApi::build_authorization_url(client_id)?;
         let auth_code = SpotifyApi::listen_for_code(&auth_url).await?;
 
@@ -69,10 +69,17 @@ impl SpotifyApi {
         headers.insert("authorization", bearer.parse()?);
         headers.insert("content-type", "application/json".parse()?);
 
-        let client = reqwest::ClientBuilder::new()
+        let mut client = reqwest::ClientBuilder::new()
             .default_headers(headers)
-            .cookie_store(true)
-            .build()?;
+            .cookie_store(true);
+
+        if debug {
+            client = client
+                .proxy(reqwest::Proxy::all("http://127.0.0.1:8080")?)
+                .danger_accept_invalid_certs(true)
+        }
+
+        let client = client.build()?;
 
         Ok(SpotifyApi { client })
     }
@@ -292,9 +299,7 @@ impl MusicApi for SpotifyApi {
         songs: &[Song],
     ) -> Result<()> {
         for song in songs {
-            playlist
-                .songs
-                .retain(|s| s != song);
+            playlist.songs.retain(|s| s != song);
         }
 
         let uris: Vec<serde_json::Value> = songs
@@ -406,8 +411,6 @@ mod tests {
         let playlists = ytmusic.get_playlists_info().await.unwrap();
         let test_spotify = playlists.iter().find(|p| p.name == "TestSpotify").unwrap();
         let songs = ytmusic.get_playlist_songs(&test_spotify.id).await.unwrap();
-
-        return;
 
         let spotify_client_id = env::var("SPOTIFY_CLIENT_ID").unwrap();
         let spotify_secret = env::var("SPOTIFY_CLIENT_SECRET").unwrap();

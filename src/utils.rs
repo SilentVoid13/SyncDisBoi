@@ -36,10 +36,6 @@ pub fn generic_name_clean(name: &str) -> String {
         name = name.replace(a, b);
     }
     let part_re = Regex::new(r"\((part (?:[a-zA-Z]+|[0-9]+))\)").unwrap();
-    if name.contains("part") {
-        info!("NAME NAME: {}", name);
-        info!("matches: {:?}", part_re.is_match(&name));
-    }
     if part_re.is_match(&name) {
         info!("Before: {}", name);
         name = part_re.replace_all(&name, "$1").to_string();

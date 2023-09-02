@@ -22,11 +22,13 @@ pub struct YtMusicApi {
 
 impl YtMusicApi {
     const BASE_API: &'static str = "https://music.youtube.com/youtubei/v1/";
-    const BASE_PARAMS: &'static str = "?alt=json&prettyPrint=false&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
+    const BASE_PARAMS: &'static str =
+        "?alt=json&prettyPrint=false&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
 
-    pub fn new(headers: &PathBuf) -> Result<Self> {
+    pub fn new(headers: &PathBuf, debug: bool) -> Result<Self> {
         let header_json = std::fs::read_to_string(headers)?;
-        let header_json: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&header_json)?;
+        let header_json: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(&header_json)?;
         let mut headers = HeaderMap::new();
         for (key, val) in header_json.into_iter() {
             if let serde_json::Value::String(s) = val {
@@ -34,7 +36,6 @@ impl YtMusicApi {
             }
         }
 
-        // TODO: find a way to create constant dyn value without putting it into the struct
         let context: serde_json::Value = json!({
             "client": {
                 "clientName": "WEB_REMIX",
@@ -44,14 +45,17 @@ impl YtMusicApi {
             "user": {}
         });
 
-        let client = reqwest::ClientBuilder::new()
-            // TODO: Remove this
-            .proxy(reqwest::Proxy::all("http://127.0.0.1:8080")?)
-            .danger_accept_invalid_certs(true)
+        let mut client = reqwest::ClientBuilder::new()
             .cookie_store(true)
-            .default_headers(headers)
-            .build()
-            .unwrap();
+            .default_headers(headers);
+
+        if debug {
+            client = client
+                .proxy(reqwest::Proxy::all("http://127.0.0.1:8080")?)
+                .danger_accept_invalid_certs(true)
+        }
+
+        let client = client.build().unwrap();
 
         Ok(YtMusicApi { client, context })
     }
@@ -165,7 +169,6 @@ impl MusicApi for YtMusicApi {
             format!("VL{}", id)
         };
         let body = json!({ "browseId": browse_id });
-        // TODO: Find a way to impl Deserialize for Songs to avoid the .try_into
         let response = self.paginated_request("browse", &body).await?;
         let songs: Songs = response.try_into()?;
         Ok(songs.0)

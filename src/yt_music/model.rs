@@ -453,9 +453,33 @@ pub struct ContinuationContents {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct CommandContent<T> {
+    pub command_executor_command: CommandExecutorCommand<T>,
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandExecutorCommand<T> {
+    pub commands: Vec<CommandsContent<T>>,
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+#[serde(untagged)]
+pub enum CommandsContent<T> {
+    Cmd(T),
+    Other(serde_json::Value),
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TabbedSearchResultsRenderer {
+    pub tabs: [Tab; 1],
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct YtMusicPlaylistCreateResponse {
     pub playlist_id: String,
 }
+
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -468,10 +492,11 @@ impl YtMusicPlaylistEditResponse {
     }
 }
 
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct YtMusicPlaylistDeleteResponse {
-    pub command: DeleteCommand,
+    pub command: CommandContent<DeleteCommand>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -482,10 +507,4 @@ pub struct DeleteCommand {
 #[serde(rename_all = "camelCase")]
 pub struct HandlePlaylistDeletionCommand {
     pub playlist_id: String,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct TabbedSearchResultsRenderer {
-    pub tabs: [Tab; 1],
 }

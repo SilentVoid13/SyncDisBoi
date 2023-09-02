@@ -20,15 +20,10 @@ pub struct RootArgs {
     #[command(flatten)]
     pub ytmusic: YtMusicArgs,
 
-    /// Generate stats about the synchronization in a `stats` folder
-    ///
-    ///
-    /// This includes:
-    /// - conversion rate for each playlist
-    /// - list of songs that couldn't be synchronized
-    /// - list of songs with no album metadata
-    #[arg(long)]
-    pub stats: bool,
+    /// Enable debug mode to display and generate debug information during synchronization
+    /// This is useful during development
+    #[arg(long, default_value = "false")]
+    pub debug: bool,
 
     /// Logging level
     #[arg(short, long, value_enum, default_value_t = LoggingLevel::Info)]
