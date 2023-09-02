@@ -14,17 +14,12 @@ use tracing_subscriber::{filter::Targets, prelude::*};
 async fn parse_api(args: &RootArgs, platform: &MusicPlatform) -> Result<DynMusicApi> {
     let api: Box<dyn MusicApi + Sync> = match platform {
         MusicPlatform::YtMusic => {
-            let cookies = args
+            let headers = args
                 .ytmusic
-                .cookies
+                .headers
                 .as_ref()
-                .ok_or(eyre!("Missing cookies"))?;
-            let secret = args
-                .ytmusic
-                .secret
-                .as_ref()
-                .ok_or(eyre!("Missing secret"))?;
-            Box::new(YtMusicApi::new(&cookies, &secret)?)
+                .ok_or(eyre!("Missing headers file"))?;
+            Box::new(YtMusicApi::new(&headers)?)
         }
         MusicPlatform::Spotify => {
             let client_id = args

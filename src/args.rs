@@ -67,12 +67,9 @@ pub enum MusicPlatform {
 #[derive(Args, Clone, Debug)]
 #[group()]
 pub struct YtMusicArgs {
-    /// The secret for the YouTube Music API
-    #[arg(long, env = "YTMUSIC_SECRET")]
-    pub secret: Option<String>,
-    /// The path to the cookies file for the YouTube Music API
-    #[arg(long, env = "YTMUSIC_COOKIES")]
-    pub cookies: Option<PathBuf>,
+    /// The file containing the headers for the YouTube Music API
+    #[arg(long, env = "YTMUSIC_HEADERS")]
+    pub headers: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]

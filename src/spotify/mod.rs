@@ -399,10 +399,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_spotify_search_from_ytmusic() {
-        let ytmusic_cookies = env::var("YT_MUSIC_COOKIES").unwrap();
-        let ytmusic_cookies = PathBuf::from(ytmusic_cookies);
-        let ytmusic_secret = std::env::var("YT_MUSIC_SECRET").unwrap();
-        let ytmusic = YtMusicApi::new(&ytmusic_cookies, &ytmusic_secret).unwrap();
+        let ytmusic_headers = env::var("YTMUSIC_HEADERS").unwrap();
+        let ytmusic_headers = PathBuf::from(ytmusic_headers);
+        let ytmusic = YtMusicApi::new(&ytmusic_headers).unwrap();
 
         let playlists = ytmusic.get_playlists_info().await.unwrap();
         let test_spotify = playlists.iter().find(|p| p.name == "TestSpotify").unwrap();

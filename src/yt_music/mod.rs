@@ -6,7 +6,7 @@ use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDelet
 
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
-use reqwest::header::HeaderMap;
+use reqwest::header::{HeaderMap, HeaderName};
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use std::fmt::Write;
@@ -22,37 +22,32 @@ pub struct YtMusicApi {
 
 impl YtMusicApi {
     const BASE_API: &'static str = "https://music.youtube.com/youtubei/v1/";
-    const BASE_PARAMS: &'static str =
-        "?alt=json&prettyPrint=false&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
+    const BASE_PARAMS: &'static str = "?alt=json&prettyPrint=false&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
 
-    pub fn new(cookies: &PathBuf, secret: &str) -> Result<Self> {
-        let origin = "https://music.youtube.com";
-        let cookies = std::fs::read_to_string(cookies)?;
+    pub fn new(headers: &PathBuf) -> Result<Self> {
+        let header_json = std::fs::read_to_string(headers)?;
+        let header_json: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&header_json)?;
+        let mut headers = HeaderMap::new();
+        for (key, val) in header_json.into_iter() {
+            if let serde_json::Value::String(s) = val {
+                headers.insert(HeaderName::from_bytes(key.as_bytes())?, s.parse()?);
+            }
+        }
 
         // TODO: find a way to create constant dyn value without putting it into the struct
         let context: serde_json::Value = json!({
             "client": {
                 "clientName": "WEB_REMIX",
-                "clientVersion": "0.1",
+                "clientVersion": "1.20230901.01.00",
                 "hl": "en"
             },
             "user": {}
         });
 
-        let mut headers = HeaderMap::new();
-        headers.insert("accept", "*/*".parse()?);
-        headers.insert("content-type", "application/json; charset=UTF-8".parse()?);
-        headers.insert("authorization", secret.parse()?);
-        headers.insert("cookie", cookies.trim().parse().unwrap());
-        headers.insert("origin", origin.parse()?);
-        headers.insert("user-agent",  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.102 Safari/537.36".parse()?);
-        headers.insert("x-goog-authuser", "0".parse()?);
-        headers.insert(
-            "x-goog-visitor-id",
-            "CgtFMUR1cU1wVmhUdyiTiNChBg%3D%3D".parse()?,
-        );
-
         let client = reqwest::ClientBuilder::new()
+            // TODO: Remove this
+            .proxy(reqwest::Proxy::all("http://127.0.0.1:8080")?)
+            .danger_accept_invalid_certs(true)
             .cookie_store(true)
             .default_headers(headers)
             .build()
@@ -113,9 +108,12 @@ impl YtMusicApi {
         let endpoint = self.build_endpoint(path, ctoken);
 
         let res = self.client.post(endpoint).json(&body).send().await?;
+        if res.status() != 200 {
+            return Err(eyre!("Request failed: {:?}", res));
+        }
         // TODO: remove this
         let text = res.text().await?;
-        std::fs::write("data.json", &text).unwrap();
+        std::fs::write("json/last_req.json", &text).unwrap();
         let obj = serde_json::from_str(&text)?;
         //let obj = res.json().await?;
         Ok(obj)
@@ -268,7 +266,7 @@ impl MusicApi for YtMusicApi {
                 return Ok(Some(res_song));
             }
         }
-        return Ok(None)
+        return Ok(None);
     }
 }
 
