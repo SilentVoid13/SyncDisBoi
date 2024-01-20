@@ -1,6 +1,22 @@
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
+pub struct YtMusicOAuthResponse {
+    pub verification_url: String,
+    pub user_code: String,
+    pub device_code: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct YtMusicOAuthToken {
+    pub scope: String,
+    pub token_type: String,
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_in: u64,
+}
+
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct YtMusicResponse {
     pub contents: ResponseContent,

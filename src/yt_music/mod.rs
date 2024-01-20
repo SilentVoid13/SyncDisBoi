@@ -2,22 +2,38 @@ pub mod model;
 mod response;
 
 use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, Songs2, PLAYLIST_DESC};
-use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse};
+use crate::yt_music::model::{
+    YtMusicOAuthToken, YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse,
+};
 
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
+use lazy_static::lazy_static;
 use reqwest::header::{HeaderMap, HeaderName};
 use serde::de::DeserializeOwned;
 use serde_json::json;
+use std::collections::HashMap;
 use std::fmt::Write;
-use std::path::PathBuf;
+use std::path::Path;
 use tracing::info;
 
-use self::model::{YtMusicContinuationResponse, YtMusicPlaylistEditResponse, YtMusicResponse};
+use self::model::{
+    YtMusicContinuationResponse, YtMusicOAuthResponse, YtMusicPlaylistEditResponse, YtMusicResponse,
+};
+
+lazy_static! {
+    static ref CONTEXT: serde_json::Value = json!({
+        "client": {
+            "clientName": "WEB_REMIX",
+            "clientVersion": "1.20230901.01.00",
+            "hl": "en"
+        },
+        "user": {}
+    });
+}
 
 pub struct YtMusicApi {
     client: reqwest::Client,
-    context: serde_json::Value,
 }
 
 impl YtMusicApi {
@@ -25,7 +41,77 @@ impl YtMusicApi {
     const BASE_PARAMS: &'static str =
         "?alt=json&prettyPrint=false&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
 
-    pub fn new(headers: &PathBuf, debug: bool) -> Result<Self> {
+    const OAUTH_SCOPE: &'static str = "https://www.googleapis.com/auth/youtube";
+    const OAUTH_CODE_URL: &'static str = "https://www.youtube.com/o/oauth2/device/code";
+    const OAUTH_TOKEN_URL: &'static str = "https://oauth2.googleapis.com/token";
+    const OAUTH_GRANT_TYPE: &'static str = "http://oauth.net/grant_type/device/1.0";
+    const OAUTH_USER_AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0 Cobalt/Version";
+
+    pub async fn new_with_oauth(client_id: &str, client_secret: &str, debug: bool, proxy: Option<&str>) -> Result<Self> {
+        let mut headers = HeaderMap::new();
+        headers.insert("User-Agent", Self::OAUTH_USER_AGENT.parse()?);
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?;
+
+        // 1. request the code
+        let mut params = HashMap::new();
+        params.insert("client_id", client_id);
+        params.insert("scope", Self::OAUTH_SCOPE);
+        let res = client
+            .post(Self::OAUTH_CODE_URL)
+            .form(&params)
+            .send()
+            .await?;
+        let oauth_res: YtMusicOAuthResponse = res.json().await?;
+
+        dbg!(&oauth_res);
+        let auth_url = format!(
+            "{}?user_code={}",
+            oauth_res.verification_url, oauth_res.user_code
+        );
+        webbrowser::open(&auth_url)?;
+        info!("Please authorize the app in your browser and press enter");
+        // TODO: Find better solution?
+        let mut s = String::new();
+        std::io::stdin().read_line(&mut s).unwrap();
+
+        // 2. request the token
+        let mut params = HashMap::new();
+        params.insert("client_id", client_id);
+        params.insert("code", &oauth_res.device_code);
+        params.insert("client_secret", client_secret);
+        params.insert("grant_type", Self::OAUTH_GRANT_TYPE);
+        let res = client
+            .post(Self::OAUTH_TOKEN_URL)
+            .form(&params)
+            .send()
+            .await?;
+        let token: YtMusicOAuthToken = res.json().await?;
+
+        let mut headers = HeaderMap::new();
+        headers.insert("User-Agent", Self::OAUTH_USER_AGENT.parse()?);
+        headers.insert("Cookie", "SOCS=CAI".parse()?);
+        headers.insert(
+            "Authorization",
+            format!("Bearer {}", token.access_token).parse()?,
+        );
+
+        let mut client = reqwest::Client::builder()
+            .cookie_store(true)
+            .default_headers(headers);
+
+        if let Some(proxy) = proxy {
+            client = client
+                .proxy(reqwest::Proxy::all(proxy)?)
+                .danger_accept_invalid_certs(true)
+        }
+        let client = client.build()?;
+
+        Ok(YtMusicApi { client })
+    }
+
+    pub fn new_with_headers(headers: &Path, debug: bool, proxy: Option<&str>) -> Result<Self> {
         let header_json = std::fs::read_to_string(headers)?;
         let header_json: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(&header_json)?;
@@ -36,37 +122,23 @@ impl YtMusicApi {
             }
         }
 
-        let context: serde_json::Value = json!({
-            "client": {
-                "clientName": "WEB_REMIX",
-                "clientVersion": "1.20230901.01.00",
-                "hl": "en"
-            },
-            "user": {}
-        });
-
         let mut client = reqwest::ClientBuilder::new()
             .cookie_store(true)
             .default_headers(headers);
 
-        if debug {
+        if let Some(proxy) = proxy {
             client = client
-                .proxy(reqwest::Proxy::all("http://127.0.0.1:8080")?)
+                .proxy(reqwest::Proxy::all(proxy)?)
                 .danger_accept_invalid_certs(true)
         }
 
         let client = client.build().unwrap();
 
-        Ok(YtMusicApi { client, context })
+        Ok(Self { client })
     }
 
     fn build_endpoint(&self, path: &str, ctoken: Option<&str>) -> String {
-        let mut endpoint = format!(
-            "{}{}{}",
-            YtMusicApi::BASE_API,
-            path,
-            YtMusicApi::BASE_PARAMS,
-        );
+        let mut endpoint = format!("{}{}{}", Self::BASE_API, path, Self::BASE_PARAMS,);
         if let Some(c) = ctoken {
             std::write!(&mut endpoint, "&ctoken={c}&continuation={c}", c = c).unwrap();
         }
@@ -76,7 +148,7 @@ impl YtMusicApi {
     fn add_context(&self, body: &serde_json::Value) -> serde_json::Value {
         let mut body = body.clone();
         match body.as_object_mut() {
-            Some(o) => o.insert("context".to_string(), self.context.clone()),
+            Some(o) => o.insert("context".to_string(), CONTEXT.clone()),
             _ => unreachable!(),
         };
         body
@@ -145,7 +217,7 @@ impl MusicApi for YtMusicApi {
         });
         let response: YtMusicPlaylistCreateResponse =
             self.make_request("playlist/create", &body, None).await?;
-        let id = YtMusicApi::clean_playlist_id(&response.playlist_id);
+        let id = Self::clean_playlist_id(&response.playlist_id);
         Ok(Playlist {
             id: id,
             name: name.to_string(),

@@ -25,9 +25,42 @@ pub struct RootArgs {
     #[arg(long, default_value = "false")]
     pub debug: bool,
 
+    /// Proxy to use for all requests in the format http://<ip>:<port>
+    #[arg(long)]
+    pub proxy: Option<String>,
+
     /// Logging level
     #[arg(short, long, value_enum, default_value_t = LoggingLevel::Info)]
     pub logging: LoggingLevel,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum MusicPlatform {
+    YtMusic,
+    Spotify,
+}
+
+#[derive(Args, Clone, Debug)]
+#[group()]
+pub struct YtMusicArgs {
+    /// The file containing the headers for the YouTube Music API
+    #[arg(long, env = "YTMUSIC_HEADERS")]
+    pub headers: Option<PathBuf>,
+    #[arg(long, env = "YTMUSIC_CLIENT_ID")]
+    pub client_id_yt: Option<String>,
+    #[arg(long, env = "YTMUSIC_CLIENT_SECRET")]
+    pub client_secret_yt: Option<String>,
+}
+
+#[derive(Args, Debug)]
+#[group()]
+pub struct SpotifyArgs {
+    /// The client ID for the Spotify API application
+    #[arg(long, env = "SPOTIFY_CLIENT_ID")]
+    pub client_id_sp: Option<String>,
+    /// The client secret for the Spotify API application
+    #[arg(long, env = "SPOTIFY_CLIENT_SECRET")]
+    pub client_secret_sp: Option<String>,
 }
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -51,29 +84,4 @@ impl From<LoggingLevel> for Level {
             LoggingLevel::Debug => Level::DEBUG,
         }
     }
-}
-
-#[derive(ValueEnum, Clone, Debug)]
-pub enum MusicPlatform {
-    YtMusic,
-    Spotify,
-}
-
-#[derive(Args, Clone, Debug)]
-#[group()]
-pub struct YtMusicArgs {
-    /// The file containing the headers for the YouTube Music API
-    #[arg(long, env = "YTMUSIC_HEADERS")]
-    pub headers: Option<PathBuf>,
-}
-
-#[derive(Args, Debug)]
-#[group()]
-pub struct SpotifyArgs {
-    /// The client ID for the Spotify API application
-    #[arg(long, env = "SPOTIFY_CLIENT_ID")]
-    pub client_id: Option<String>,
-    /// The client secret for the Spotify API application
-    #[arg(long, env = "SPOTIFY_CLIENT_SECRET")]
-    pub client_secret: Option<String>,
 }

@@ -19,20 +19,31 @@ async fn parse_api(args: &RootArgs, platform: &MusicPlatform) -> Result<DynMusic
                 .headers
                 .as_ref()
                 .ok_or(eyre!("Missing headers file"))?;
-            Box::new(YtMusicApi::new(&headers, args.debug)?)
+            let client_id = args
+                .ytmusic
+                .client_id_yt
+                .as_ref()
+                .ok_or(eyre!("Missing client ID"))?;
+            let client_secret = args
+                .ytmusic
+                .client_secret_yt
+                .as_ref()
+                .ok_or(eyre!("Missing client secret"))?;
+            //Box::new(YtMusicApi::new_with_headers(&headers, args.debug)?)
+            Box::new(YtMusicApi::new_with_oauth(&client_id, &client_secret, args.debug, args.proxy.as_deref()).await?)
         }
         MusicPlatform::Spotify => {
             let client_id = args
                 .spotify
-                .client_id
+                .client_id_sp
                 .as_ref()
                 .ok_or(eyre!("Missing client ID"))?;
             let client_secret = args
                 .spotify
-                .client_secret
+                .client_secret_sp
                 .as_ref()
                 .ok_or(eyre!("Missing client secret"))?;
-            Box::new(SpotifyApi::new(&client_id, &client_secret, args.debug).await?)
+            Box::new(SpotifyApi::new(&client_id, &client_secret, args.debug, args.proxy.as_deref()).await?)
         }
     };
     Ok(api)
@@ -56,7 +67,6 @@ async fn main() -> Result<()> {
 
     let src_api = parse_api(&args, &args.src).await?;
     let dst_api = parse_api(&args, &args.dst).await?;
-
     synchronize(src_api, dst_api, args.debug).await?;
 
     Ok(())

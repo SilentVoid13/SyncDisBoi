@@ -21,6 +21,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tracing::debug;
+use tracing::info;
 use tracing::warn;
 
 use self::model::SpotifyPageResponse;
@@ -46,7 +47,7 @@ impl SpotifyApi {
         "playlist-modify-private",
     ];
 
-    pub async fn new(client_id: &str, client_secret: &str, debug: bool) -> Result<Self> {
+    pub async fn new(client_id: &str, client_secret: &str, debug: bool, proxy: Option<&str>) -> Result<Self> {
         let auth_url = SpotifyApi::build_authorization_url(client_id)?;
         let auth_code = SpotifyApi::listen_for_code(&auth_url).await?;
 
@@ -73,9 +74,9 @@ impl SpotifyApi {
             .default_headers(headers)
             .cookie_store(true);
 
-        if debug {
+        if let Some(proxy) = proxy {
             client = client
-                .proxy(reqwest::Proxy::all("http://127.0.0.1:8080")?)
+                .proxy(reqwest::Proxy::all(proxy)?)
                 .danger_accept_invalid_certs(true)
         }
 
@@ -102,6 +103,7 @@ impl SpotifyApi {
         let listener = TcpListener::bind(SpotifyApi::REDIRECT_URI_HOST).await?;
         webbrowser::open(auth_url)?;
 
+        info!("Please authorize the app in your browser");
         let (socket, _) = listener.accept().await?;
 
         socket.readable().await?;
@@ -125,7 +127,7 @@ impl SpotifyApi {
     }
 
     fn build_endpoint(&self, path: &str) -> String {
-        format!("{}{}", SpotifyApi::BASE_API, path,)
+        format!("{}{}", SpotifyApi::BASE_API, path)
     }
 
     async fn paginated_request<T>(

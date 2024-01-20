@@ -9,6 +9,7 @@ async-trait = "0.1.57"
 clap = { version = "*", features = ["derive", "env"] }
 color-eyre = "0.6.2"
 futures = "0.3.24"
+lazy_static = "1.4.0"
 regex = "1.8.3"
 reqwest = { version = "0.11.11", features = ["cookies", "json"] }
 serde = { version = "1.0.144", features = ["derive"] }
