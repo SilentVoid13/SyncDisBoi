@@ -43,9 +43,6 @@ pub enum MusicPlatform {
 #[derive(Args, Clone, Debug)]
 #[group()]
 pub struct YtMusicArgs {
-    /// The file containing the headers for the YouTube Music API
-    #[arg(long, env = "YTMUSIC_HEADERS")]
-    pub headers: Option<PathBuf>,
     #[arg(long, env = "YTMUSIC_CLIENT_ID")]
     pub client_id_yt: Option<String>,
     #[arg(long, env = "YTMUSIC_CLIENT_SECRET")]

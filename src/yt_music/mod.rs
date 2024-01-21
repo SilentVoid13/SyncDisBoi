@@ -14,11 +14,12 @@ use serde::de::DeserializeOwned;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fmt::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
 use self::model::{
-    YtMusicContinuationResponse, YtMusicOAuthResponse, YtMusicPlaylistEditResponse, YtMusicResponse,
+    YtMusicContinuationResponse, YtMusicOAuthRefresh, YtMusicOAuthResponse,
+    YtMusicPlaylistEditResponse, YtMusicResponse,
 };
 
 lazy_static! {
@@ -47,14 +48,77 @@ impl YtMusicApi {
     const OAUTH_GRANT_TYPE: &'static str = "http://oauth.net/grant_type/device/1.0";
     const OAUTH_USER_AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0 Cobalt/Version";
 
-    pub async fn new_with_oauth(client_id: &str, client_secret: &str, debug: bool, proxy: Option<&str>) -> Result<Self> {
+    pub async fn new(
+        client_id: &str,
+        client_secret: &str,
+        oauth_token_path: PathBuf,
+        debug: bool,
+        proxy: Option<&str>,
+    ) -> Result<Self> {
         let mut headers = HeaderMap::new();
         headers.insert("User-Agent", Self::OAUTH_USER_AGENT.parse()?);
         let client = reqwest::Client::builder()
             .default_headers(headers)
             .build()?;
 
-        // 1. request the code
+        let token = if oauth_token_path.exists() {
+            Self::refresh_token(&client, client_id, client_secret, &oauth_token_path).await?
+        } else {
+            Self::request_token(&client, client_id, client_secret).await?
+        };
+        // Write new token
+        let mut file = std::fs::File::create(&oauth_token_path)?;
+        serde_json::to_writer(&mut file, &token)?;
+
+        let mut headers = HeaderMap::new();
+        headers.insert("User-Agent", Self::OAUTH_USER_AGENT.parse()?);
+        headers.insert("Cookie", "SOCS=CAI".parse()?);
+        headers.insert(
+            "Authorization",
+            format!("Bearer {}", token.access_token).parse()?,
+        );
+
+        let mut client = reqwest::Client::builder()
+            .cookie_store(true)
+            .default_headers(headers);
+
+        if let Some(proxy) = proxy {
+            client = client
+                .proxy(reqwest::Proxy::all(proxy)?)
+                .danger_accept_invalid_certs(true)
+        }
+        let client = client.build()?;
+
+        Ok(YtMusicApi { client })
+    }
+
+    async fn refresh_token(
+        client: &reqwest::Client,
+        client_id: &str,
+        client_secret: &str,
+        oauth_token_path: &PathBuf,
+    ) -> Result<YtMusicOAuthToken> {
+        let reader = std::fs::File::open(&oauth_token_path)?;
+        let mut oauth_token: YtMusicOAuthToken = serde_json::from_reader(reader)?;
+
+        let mut params = HashMap::new();
+        params.insert("client_id", client_id);
+        params.insert("client_secret", client_secret);
+        params.insert("grant_type", "refresh_token");
+        params.insert("refresh_token", &oauth_token.refresh_token);
+        let res = client
+            .post(Self::OAUTH_TOKEN_URL)
+            .form(&params)
+            .send()
+            .await?;
+        let refresh_token: YtMusicOAuthRefresh = res.json().await?;
+        oauth_token.access_token = refresh_token.access_token;
+        oauth_token.expires_in = refresh_token.expires_in;
+        Ok(oauth_token)
+    }
+
+    async fn request_token(client: &reqwest::Client, client_id: &str, client_secret: &str) -> Result<YtMusicOAuthToken> {
+        // 1. request access
         let mut params = HashMap::new();
         params.insert("client_id", client_id);
         params.insert("scope", Self::OAUTH_SCOPE);
@@ -88,53 +152,7 @@ impl YtMusicApi {
             .send()
             .await?;
         let token: YtMusicOAuthToken = res.json().await?;
-
-        let mut headers = HeaderMap::new();
-        headers.insert("User-Agent", Self::OAUTH_USER_AGENT.parse()?);
-        headers.insert("Cookie", "SOCS=CAI".parse()?);
-        headers.insert(
-            "Authorization",
-            format!("Bearer {}", token.access_token).parse()?,
-        );
-
-        let mut client = reqwest::Client::builder()
-            .cookie_store(true)
-            .default_headers(headers);
-
-        if let Some(proxy) = proxy {
-            client = client
-                .proxy(reqwest::Proxy::all(proxy)?)
-                .danger_accept_invalid_certs(true)
-        }
-        let client = client.build()?;
-
-        Ok(YtMusicApi { client })
-    }
-
-    pub fn new_with_headers(headers: &Path, debug: bool, proxy: Option<&str>) -> Result<Self> {
-        let header_json = std::fs::read_to_string(headers)?;
-        let header_json: serde_json::Map<String, serde_json::Value> =
-            serde_json::from_str(&header_json)?;
-        let mut headers = HeaderMap::new();
-        for (key, val) in header_json.into_iter() {
-            if let serde_json::Value::String(s) = val {
-                headers.insert(HeaderName::from_bytes(key.as_bytes())?, s.parse()?);
-            }
-        }
-
-        let mut client = reqwest::ClientBuilder::new()
-            .cookie_store(true)
-            .default_headers(headers);
-
-        if let Some(proxy) = proxy {
-            client = client
-                .proxy(reqwest::Proxy::all(proxy)?)
-                .danger_accept_invalid_certs(true)
-        }
-
-        let client = client.build().unwrap();
-
-        Ok(Self { client })
+        Ok(token)
     }
 
     fn build_endpoint(&self, path: &str, ctoken: Option<&str>) -> String {
@@ -220,7 +238,7 @@ impl MusicApi for YtMusicApi {
             self.make_request("playlist/create", &body, None).await?;
         let id = Self::clean_playlist_id(&response.playlist_id);
         Ok(Playlist {
-            id: id,
+            id,
             name: name.to_string(),
             songs: vec![],
         })

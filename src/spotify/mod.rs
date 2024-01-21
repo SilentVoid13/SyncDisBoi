@@ -415,7 +415,9 @@ mod tests {
     async fn test_spotify_search_from_ytmusic() {
         let yt_client_id = env::var("YTMUSIC_CLIENT_ID").unwrap();
         let yt_client_secret = env::var("YTMUSIC_CLIENT_SECRET").unwrap();
-        let ytmusic = YtMusicApi::new_with_oauth(&yt_client_id, &yt_client_secret, false, None)
+        let config_dir = dirs::config_dir().unwrap();
+        let oauth_token_path = config_dir.join("SyncDisBoi").join("ytmusic_oauth.json");
+        let ytmusic = YtMusicApi::new(&yt_client_id, &yt_client_secret, oauth_token_path, false, None)
             .await
             .unwrap();
 
