@@ -15,7 +15,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::Path;
-use tracing::info;
+use tracing::{info, warn};
 
 use self::model::{
     YtMusicContinuationResponse, YtMusicOAuthResponse, YtMusicPlaylistEditResponse, YtMusicResponse,
@@ -163,6 +163,7 @@ impl YtMusicApi {
         let mut continuation = response.get_continuation();
 
         while let Some(cont) = continuation {
+            warn!("continuation found");
             let mut response2: YtMusicContinuationResponse =
                 self.make_request(path, body, Some(&cont)).await?;
             response.merge(&mut response2);

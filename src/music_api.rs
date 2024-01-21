@@ -129,16 +129,14 @@ impl Song {
         //}
 
         // Check album name resemblance
-        if let Some(album1) = &self.album {
-            if let Some(album2) = &other.album {
-                let name1 = generic_name_clean(&album1.name);
-                let name2 = generic_name_clean(&album1.name);
-                let score = normalized_levenshtein(&name1, &name2).abs();
-                if score < 0.8 {
-                    // TODO: Remove this
-                    debug!("Album score: {} --> {:?} vs {:?}", score, album1, album2);
-                    return false;
-                }
+        if let (Some(album1), Some(album2)) = (&self.album, &other.album) {
+            let name1 = generic_name_clean(&album1.name);
+            let name2 = generic_name_clean(&album2.name);
+            let score = normalized_levenshtein(&name1, &name2).abs();
+            if score < 0.8 {
+                // TODO: Remove this
+                debug!("Album score: {} --> {:?} vs {:?}", score, album1, album2);
+                return false;
             }
         }
 
@@ -166,10 +164,7 @@ impl std::fmt::Display for Song {
         } else {
             String::new()
         };
-        f.write_fmt(format_args!(
-            "{}{}{}",
-            self.name, album, artists
-        ))
+        f.write_fmt(format_args!("{}{}{}", self.name, album, artists))
     }
 }
 

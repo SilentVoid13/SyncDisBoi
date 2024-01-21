@@ -47,7 +47,12 @@ impl SpotifyApi {
         "playlist-modify-private",
     ];
 
-    pub async fn new(client_id: &str, client_secret: &str, debug: bool, proxy: Option<&str>) -> Result<Self> {
+    pub async fn new(
+        client_id: &str,
+        client_secret: &str,
+        debug: bool,
+        proxy: Option<&str>,
+    ) -> Result<Self> {
         let auth_url = SpotifyApi::build_authorization_url(client_id)?;
         let auth_code = SpotifyApi::listen_for_code(&auth_url).await?;
 
@@ -330,14 +335,10 @@ impl MusicApi for SpotifyApi {
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
-        // Spotify doesn't support quotes in search
-
         let path = "/search";
         let max_len = 100;
 
-        // TODO: It looks like single quotes have better results compared to double quotes, not
-        // sure why
-
+        // TODO: It looks like single quotes have better results compared to double quotes, not sure why
         let mut track_query = format!("track:\"{}\"", song.clean_name());
 
         // TODO: fix this
@@ -358,17 +359,19 @@ impl MusicApi for SpotifyApi {
             album_query = Some(format!("album:\"{}\"", album.clean_name()));
         }
 
-        // Track + Artist + Album -> Track + Artist -> Track + Album
+        // Query: Track + Album
         let mut queries = vec![];
         if let Some(album_query) = album_query.as_ref() {
             let tr_al_query = format!("{} {}", track_query, album_query);
             push_query(&mut queries, tr_al_query, max_len);
         }
+        // Query: Track + Artist
         for artist_query in artist_queries.iter().rev() {
-            // It looks like spotify doesn't support multiple artists in search
+            // TODO: It looks like spotify doesn't support multiple artists in search
             let tr_ar_query = format!("{} {}", track_query, artist_query);
             push_query(&mut queries, tr_ar_query, max_len);
         }
+        // Query: Track + Artist + Album
         if let Some(album_query) = album_query.as_ref() {
             for artist_query in artist_queries.iter().rev() {
                 let tr_ar_al_query = format!("{} {} {}", track_query, artist_query, album_query);
@@ -386,8 +389,12 @@ impl MusicApi for SpotifyApi {
             let mut res_songs: Songs = res.try_into()?;
             if !res_songs.0.is_empty() {
                 let res_song = res_songs.0.remove(0);
+                println!("Query: {}", query);
                 if song.compare(&res_song) {
+                    dbg!(&res_song);
                     return Ok(Some(res_song));
+                } else {
+                    println!("ERROR compare");
                 }
             }
         }
@@ -406,9 +413,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_spotify_search_from_ytmusic() {
-        let ytmusic_headers = env::var("YTMUSIC_HEADERS").unwrap();
-        let ytmusic_headers = PathBuf::from(ytmusic_headers);
-        let ytmusic = YtMusicApi::new(&ytmusic_headers).unwrap();
+        let yt_client_id = env::var("YTMUSIC_CLIENT_ID").unwrap();
+        let yt_client_secret = env::var("YTMUSIC_CLIENT_SECRET").unwrap();
+        let ytmusic = YtMusicApi::new_with_oauth(&yt_client_id, &yt_client_secret, false, None)
+            .await
+            .unwrap();
 
         let playlists = ytmusic.get_playlists_info().await.unwrap();
         let test_spotify = playlists.iter().find(|p| p.name == "TestSpotify").unwrap();
@@ -416,24 +425,32 @@ mod tests {
 
         let spotify_client_id = env::var("SPOTIFY_CLIENT_ID").unwrap();
         let spotify_secret = env::var("SPOTIFY_CLIENT_SECRET").unwrap();
-        let spotify = SpotifyApi::new(&spotify_client_id, &spotify_secret)
+        let spotify = SpotifyApi::new(&spotify_client_id, &spotify_secret, false, None)
             .await
             .unwrap();
 
         let songs = spotify.search_songs(&songs).await.unwrap();
         let correct_ids = [
             "2x1GoZKREbFkQJ8FUaz3Lc",
-            "088mi9DvOJCOKjMgqXJ03C",
+            // error on spotify side, album is "justice" instead of "cross"
+            "none",
             "5dayqPrW7a4b2Skq3EcxWK",
             "1vU4X8ffq8oNcvvqkgTEXm",
             "1YqUm734e5Yv5BJEDhLYxK",
             "0qG1teoBvooRo7Z5Z8edCk",
             "32dnKMni3I3gwUbWp4mi45",
+            "5HLdSJ0lsTulL0Lk7yTiYr",
+            "3Eq7BJV1hGAiL8ctKoCrbD",
+            "3F9ByoUqu31xU0I3G5xfVg",
         ];
-        for song in songs {
-            let song = song.unwrap();
-            println!("Testing song: {}, id {}", song.name, song.id);
-            assert!(correct_ids.contains(&song.id.as_str()));
+        dbg!(&songs);
+        for (i, song) in songs.into_iter().enumerate() {
+            if let Some(song) = song {
+                println!("Testing song: {}, id {}", song.name, song.id);
+                assert_eq!(song.id, correct_ids[i]);
+            } else {
+                assert_eq!(correct_ids[i], "none");
+            }
         }
     }
 }

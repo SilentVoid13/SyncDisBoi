@@ -68,6 +68,10 @@ pub async fn synchronize(
         .iter()
         .filter(|p| !SKIPPED_PLAYLISTS.contains(&p.name.as_str()) && !p.songs.is_empty())
     {
+        if src_playlist.songs.is_empty() {
+            continue;
+        }
+
         info!("Synchronizing playlist \"{}\" ...", src_playlist.name);
 
         let mut dst_playlist = match dst_playlists
