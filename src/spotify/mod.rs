@@ -68,6 +68,7 @@ impl SpotifyApi {
             .form(&params)
             .send()
             .await?;
+        let res = res.error_for_status()?;
         let token: SpotifyToken = res.json().await?;
 
         let bearer = format!("Bearer {}", token.access_token);
@@ -205,6 +206,7 @@ impl SpotifyApi {
                 .make_request(path, get_params, body, limit, offset)
                 .await;
         }
+        let res = res.error_for_status()?;
         if res.status() != StatusCode::OK && res.status() != StatusCode::CREATED {
             return Err(eyre!("Invalid response: {}", res.text().await?));
         }
@@ -223,11 +225,12 @@ impl SpotifyApi {
     {
         let endpoint = self.build_endpoint(path);
         let res = self.client.delete(endpoint).json(&body).send().await?;
-        if res.status() == StatusCode::TOO_MANY_REQUESTS {
+        if let StatusCode::TOO_MANY_REQUESTS = res.status() {
             self.api_rate_wait(&res).await?;
             // Retry request
             return self.delete_request::<T>(path, body).await;
         }
+        let res = res.error_for_status()?;
         if res.status() != StatusCode::OK && res.status() != StatusCode::CREATED {
             return Err(eyre!("Invalid response: {}", res.text().await?));
         }
@@ -417,9 +420,15 @@ mod tests {
         let yt_client_secret = env::var("YTMUSIC_CLIENT_SECRET").unwrap();
         let config_dir = dirs::config_dir().unwrap();
         let oauth_token_path = config_dir.join("SyncDisBoi").join("ytmusic_oauth.json");
-        let ytmusic = YtMusicApi::new(&yt_client_id, &yt_client_secret, oauth_token_path, false, None)
-            .await
-            .unwrap();
+        let ytmusic = YtMusicApi::new(
+            &yt_client_id,
+            &yt_client_secret,
+            oauth_token_path,
+            false,
+            None,
+        )
+        .await
+        .unwrap();
 
         let playlists = ytmusic.get_playlists_info().await.unwrap();
         let test_spotify = playlists.iter().find(|p| p.name == "TestSpotify").unwrap();

@@ -111,6 +111,7 @@ impl YtMusicApi {
             .form(&params)
             .send()
             .await?;
+        let res = res.error_for_status()?;
         let refresh_token: YtMusicOAuthRefresh = res.json().await?;
         oauth_token.access_token = refresh_token.access_token;
         oauth_token.expires_in = refresh_token.expires_in;
@@ -127,6 +128,7 @@ impl YtMusicApi {
             .form(&params)
             .send()
             .await?;
+        let res = res.error_for_status()?;
         let oauth_res: YtMusicOAuthResponse = res.json().await?;
 
         dbg!(&oauth_res);
@@ -151,6 +153,7 @@ impl YtMusicApi {
             .form(&params)
             .send()
             .await?;
+        let res = res.error_for_status()?;
         let token: YtMusicOAuthToken = res.json().await?;
         Ok(token)
     }
@@ -201,11 +204,8 @@ impl YtMusicApi {
     {
         let body = self.add_context(body);
         let endpoint = self.build_endpoint(path, ctoken);
-
         let res = self.client.post(endpoint).json(&body).send().await?;
-        if res.status() != 200 {
-            return Err(eyre!("Request failed: {:?}", res));
-        }
+        let res = res.error_for_status()?;
         // TODO: remove this
         let text = res.text().await?;
         std::fs::write("json/last_req.json", &text).unwrap();

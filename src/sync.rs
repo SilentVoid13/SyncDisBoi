@@ -7,7 +7,7 @@ use serde_json::json;
 use tracing::{info, debug};
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
-const SKIPPED_PLAYLISTS: [&str; 9] = [
+const SKIPPED_PLAYLISTS: [&str; 10] = [
     "New playlist",
     "Your Likes",
     "My Supermix",
@@ -17,6 +17,7 @@ const SKIPPED_PLAYLISTS: [&str; 9] = [
     "Big Room House Mix",
     "High Energy Mix",
     "Motivation Electronic Mix",
+    "Episodes for Later",
 ];
 
 pub async fn synchronize(
