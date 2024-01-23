@@ -105,19 +105,30 @@ impl Song {
         }
     }
 
+    pub fn is_single(&self) -> bool {
+        if let Some(album) = &self.album {
+            album.name == self.name
+        } else {
+            false
+        }
+    }
+
     pub fn compare(&self, other: &Self) -> bool {
         // Check song name resemblance
         let name1 = self.clean_name();
         let name2 = other.clean_name();
         let score = normalized_levenshtein(&name1, &name2).abs();
         if score < 0.8 {
-            // TODO: Remove this
             debug!("Song score: {} --> {} vs {}", score, name1, name2);
             return false;
         }
 
+        // INFO: We can't really compare artists names since they are not always the same order
+        // For certain platforms they are included in the song name but not the metadata
+
         // Check song duration resemblance
-        // Can't do that, since YtMusic duration is garbage
+        // INFO: Can't do that, since YtMusic duration is garbage, it's incorrect on certain
+        // songs
         //let dur1 = self.duration / 1000;
         //let dur2 = other.duration / 1000;
         //if !(dur1 - 1..dur1 + 1).contains(&dur2) {
@@ -128,15 +139,19 @@ impl Song {
         //    return false;
         //}
 
-        // Check album name resemblance
         if let (Some(album1), Some(album2)) = (&self.album, &other.album) {
-            let name1 = generic_name_clean(&album1.name);
-            let name2 = generic_name_clean(&album2.name);
-            let score = normalized_levenshtein(&name1, &name2).abs();
-            if score < 0.8 {
-                // TODO: Remove this
-                debug!("Album score: {} --> {:?} vs {:?}", score, album1, album2);
-                return false;
+            // INFO: Sometimes Youtube Music maps the album song to the Youtube Video
+            // Sometimes, the album song is just suppressed from the 'Songs' filter
+            // In these cases, we can get the single instead so we shouldn't compare album names
+            if !self.is_single() && !other.is_single() {
+                // Check album name resemblance
+                let name1 = album1.clean_name();
+                let name2 = album2.clean_name();
+                let score = normalized_levenshtein(&name1, &name2).abs();
+                if score < 0.8 {
+                    debug!("Album score: {} --> {:?} vs {:?}", score, album1, album2);
+                    return false;
+                }
             }
         }
 
@@ -188,6 +203,7 @@ pub struct Artist {
 
 impl Artist {
     pub fn clean_name(&self) -> String {
+        // TODO: Add ' - ' parsing?
         generic_name_clean(&self.name)
     }
 }

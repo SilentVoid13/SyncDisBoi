@@ -49,6 +49,7 @@ pub async fn synchronize(
 
     let mut dst_playlists = dst_api.get_playlists_full().await?;
     // Delete all dst_playlists to always make a fresh start
+    /*
     if debug {
         info!("Deleting all playlists on destination ...");
         for p in dst_playlists
@@ -60,6 +61,7 @@ pub async fn synchronize(
         }
         dst_playlists = vec![];
     }
+    */
 
     let mut missing_output = json!({});
     let mut no_albums = json!({});

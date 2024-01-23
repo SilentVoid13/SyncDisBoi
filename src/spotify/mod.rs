@@ -362,8 +362,9 @@ impl MusicApi for SpotifyApi {
             album_query = Some(format!("album:\"{}\"", album.clean_name()));
         }
 
-        // Query: Track + Album
         let mut queries = vec![];
+
+        // Query: Track + Album
         if let Some(album_query) = album_query.as_ref() {
             let tr_al_query = format!("{} {}", track_query, album_query);
             push_query(&mut queries, tr_al_query, max_len);
@@ -371,6 +372,7 @@ impl MusicApi for SpotifyApi {
         // Query: Track + Artist
         for artist_query in artist_queries.iter().rev() {
             // TODO: It looks like spotify doesn't support multiple artists in search
+            // We have to create one query per artist
             let tr_ar_query = format!("{} {}", track_query, artist_query);
             push_query(&mut queries, tr_ar_query, max_len);
         }
@@ -382,26 +384,20 @@ impl MusicApi for SpotifyApi {
             }
         }
 
-        // TODO: remove this
-        let queries_b = queries.clone();
         while let Some(query) = queries.pop() {
             let get_params = [("type", "track"), ("q", &query)];
             let res: SpotifySearchResponse = self
                 .make_request(&path, Some(&get_params), None, 50, 0)
                 .await?;
             let mut res_songs: Songs = res.try_into()?;
-            if !res_songs.0.is_empty() {
-                let res_song = res_songs.0.remove(0);
+            // iterate over top 3 results
+            for res_song in res_songs.0.into_iter().take(3) {
                 println!("Query: {}", query);
                 if song.compare(&res_song) {
-                    dbg!(&res_song);
                     return Ok(Some(res_song));
-                } else {
-                    println!("ERROR compare");
                 }
             }
         }
-        debug!("Queries failed: {:?}", queries_b);
         return Ok(None);
     }
 }

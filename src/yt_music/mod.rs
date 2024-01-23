@@ -118,7 +118,11 @@ impl YtMusicApi {
         Ok(oauth_token)
     }
 
-    async fn request_token(client: &reqwest::Client, client_id: &str, client_secret: &str) -> Result<YtMusicOAuthToken> {
+    async fn request_token(
+        client: &reqwest::Client,
+        client_id: &str,
+        client_secret: &str,
+    ) -> Result<YtMusicOAuthToken> {
         // 1. request access
         let mut params = HashMap::new();
         params.insert("client_id", client_id);
@@ -332,32 +336,58 @@ impl MusicApi for YtMusicApi {
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
-        let mut query = song.clean_name();
-        for artist in song.artists.iter() {
-            query.push_str(&format!(" {}", artist.clean_name()));
+        let track_name = song.clean_name();
+
+        let mut queries = vec![];
+
+        // Query: Track + Album
+        if let Some(album) = song.album.as_ref() {
+            let album_name = album.clean_name();
+            let tr_al_query = format!("{} {}", track_name, album_name);
+            queries.push(tr_al_query);
         }
-        if let Some(album) = &song.album {
-            query.push_str(&format!(" {}", album.clean_name()));
+        // Query: Track + Artist
+        for artist in song.artists.iter().rev() {
+            let artist_name = artist.clean_name();
+            let tr_ar_query = format!("{} {}", track_name, artist_name);
+            queries.push(tr_ar_query);
         }
+        // Query: Track + Artist + Album
+        if let Some(album) = song.album.as_ref() {
+            let album_name = album.clean_name();
+            for artist in song.artists.iter().rev() {
+                let artist_name = artist.clean_name();
+                let tr_ar_al_query = format!("{} {} {}", track_name, artist_name, album_name);
+                queries.push(tr_ar_al_query);
+            }
+        }
+
         let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
         let params = format!("EgWKAQI{}{}", "I", ignore_spelling);
 
-        info!("Searching for song: {}", query);
-
-        let body = json!({
-            "query": query,
-            "params": params,
-        });
-
-        let response = self
-            .make_request::<YtMusicResponse>("search", &body, None)
-            .await?;
-
-        let res_songs: Songs2 = response.try_into()?;
-        // iterate over top 3 results
-        for res_song in res_songs.0.into_iter().take(3) {
-            if song.compare(&res_song) {
-                return Ok(Some(res_song));
+        while let Some(query) = queries.pop() {
+            let body = json!({
+                "query": query,
+                "params": params,
+            });
+            dbg!(query);
+            let response = self
+                .make_request::<YtMusicResponse>("search", &body, None)
+                .await?;
+            let res_songs: Songs2 = response.try_into()?;
+            // iterate over top 3 results
+            for res_song in res_songs.0.into_iter().take(3) {
+                println!(
+                    "'{} {}' ---- '{} {}' ---- {}",
+                    song.name,
+                    song.album.as_ref().unwrap().name,
+                    res_song.name,
+                    res_song.album.as_ref().unwrap().name,
+                    song.compare(&res_song)
+                );
+                if song.compare(&res_song) {
+                    return Ok(Some(res_song));
+                }
             }
         }
         return Ok(None);
