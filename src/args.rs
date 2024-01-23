@@ -1,4 +1,5 @@
-use clap::{Args, Parser, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use sync_dis_boi::music_api::DynMusicApi;
 use tracing::Level;
 
 use std::path::PathBuf;
@@ -7,18 +8,8 @@ use std::path::PathBuf;
 #[command(author, version, about, long_about = None)]
 pub struct RootArgs {
     /// The source music platform
-    #[arg(short, long, required = true, env = "SRC_PLATFORM")]
-    pub src: MusicPlatform,
-
-    /// The destination music platform
-    #[arg(short, long, required = true, env = "DST_PLATFORM")]
-    pub dst: MusicPlatform,
-
-    #[command(flatten)]
-    pub spotify: SpotifyArgs,
-
-    #[command(flatten)]
-    pub ytmusic: YtMusicArgs,
+    #[command(subcommand)]
+    pub src: MusicPlatformSrc,
 
     /// Enable debug mode to display and generate debug information during synchronization
     /// This is useful during development
@@ -34,30 +25,50 @@ pub struct RootArgs {
     pub logging: LoggingLevel,
 }
 
-#[derive(ValueEnum, Clone, Debug)]
-pub enum MusicPlatform {
-    YtMusic,
-    Spotify,
+#[derive(Subcommand, Clone, Debug)]
+#[command(subcommand_value_name = "SRC_PLATFORM")]
+pub enum MusicPlatformSrc {
+    YtMusic {
+        #[arg(long, env = "YTMUSIC_CLIENT_ID")]
+        client_id: String,
+        #[arg(long, env = "YTMUSIC_CLIENT_SECRET")]
+        client_secret: String,
+        /// The destination music platform
+        #[command(subcommand)]
+        dst: MusicPlatformDst,
+    },
+    Spotify {
+        /// The client ID for the Spotify API application
+        #[arg(long, env = "SPOTIFY_CLIENT_ID")]
+        client_id: String,
+        /// The client secret for the Spotify API application
+        #[arg(long, env = "SPOTIFY_CLIENT_SECRET")]
+        client_secret: String,
+        /// The destination music platform
+        #[command(subcommand)]
+        dst: MusicPlatformDst,
+    },
 }
 
-#[derive(Args, Clone, Debug)]
-#[group()]
-pub struct YtMusicArgs {
-    #[arg(long, env = "YTMUSIC_CLIENT_ID")]
-    pub client_id_yt: Option<String>,
-    #[arg(long, env = "YTMUSIC_CLIENT_SECRET")]
-    pub client_secret_yt: Option<String>,
-}
-
-#[derive(Args, Debug)]
-#[group()]
-pub struct SpotifyArgs {
-    /// The client ID for the Spotify API application
-    #[arg(long, env = "SPOTIFY_CLIENT_ID")]
-    pub client_id_sp: Option<String>,
-    /// The client secret for the Spotify API application
-    #[arg(long, env = "SPOTIFY_CLIENT_SECRET")]
-    pub client_secret_sp: Option<String>,
+// TODO: Hack to support command chaining with clap
+// related issue: https://github.com/clap-rs/clap/issues/2222
+#[derive(Subcommand, Clone, Debug)]
+#[command(subcommand_value_name = "DST_PLATFORM")]
+pub enum MusicPlatformDst{
+    YtMusic {
+        #[arg(long, env = "YTMUSIC_CLIENT_ID")]
+        client_id: String,
+        #[arg(long, env = "YTMUSIC_CLIENT_SECRET")]
+        client_secret: String,
+    },
+    Spotify {
+        /// The client ID for the Spotify API application
+        #[arg(long, env = "SPOTIFY_CLIENT_ID")]
+        client_id: String,
+        /// The client secret for the Spotify API application
+        #[arg(long, env = "SPOTIFY_CLIENT_SECRET")]
+        client_secret: String,
+    },
 }
 
 #[derive(ValueEnum, Clone, Debug)]
