@@ -1,23 +1,23 @@
-use std::path::Path;
-
-use crate::music_api::{DynMusicApi, MusicApi, Playlist, Playlists};
+use crate::music_api::{DynMusicApi, MusicApi};
 
 use color_eyre::eyre::Result;
 use serde_json::json;
-use tracing::{info, debug};
+use tracing::{debug, info, warn};
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
 const SKIPPED_PLAYLISTS: [&str; 10] = [
+    // Yt Music specific
     "New playlist",
     "Your Likes",
     "My Supermix",
     "Discover Mix",
+    "Episodes for Later",
+    // Spotify specific
     "Liked Songs",
     "Discover Weekly",
     "Big Room House Mix",
-    "High Energy Mix",
     "Motivation Electronic Mix",
-    "Episodes for Later",
+    "High Energy Mix",
 ];
 
 pub async fn synchronize(
@@ -25,43 +25,9 @@ pub async fn synchronize(
     dst_api: Box<dyn MusicApi + Sync>,
     debug: bool,
 ) -> Result<()> {
-    let src_playlists = if debug && Path::new("json/src_playlists.json").exists() {
-        let src_playlists: Playlists =
-            serde_json::from_str(&std::fs::read_to_string("json/src_playlists.json").unwrap())
-                .unwrap();
-        let src_playlists = src_playlists.0;
-        src_playlists
-    } else {
-        info!("Retrieving src_playlist songs...");
-        let src_playlists = src_api.get_playlists_full().await?;
-        // Saving output to save time for the next run
-        if debug {
-            info!("Saving src_playlists output");
-            let val = json!(src_playlists);
-            std::fs::write(
-                "json/src_playlists.json",
-                serde_json::to_string(&val).unwrap(),
-            )
-            .unwrap();
-        }
-        src_playlists
-    };
-
+    info!("retrieving playlists...");
+    let src_playlists = src_api.get_playlists_full().await?;
     let mut dst_playlists = dst_api.get_playlists_full().await?;
-    // Delete all dst_playlists to always make a fresh start
-    /*
-    if debug {
-        info!("Deleting all playlists on destination ...");
-        for p in dst_playlists
-            .into_iter()
-            .filter(|p| !SKIPPED_PLAYLISTS.contains(&p.name.as_str()))
-        {
-            info!("Deleting playlist \"{}\" ...", p.name);
-            dst_api.delete_playlist(p).await?;
-        }
-        dst_playlists = vec![];
-    }
-    */
 
     let mut missing_output = json!({});
     let mut no_albums = json!({});
@@ -75,8 +41,6 @@ pub async fn synchronize(
             continue;
         }
 
-        info!("Synchronizing playlist \"{}\" ...", src_playlist.name);
-
         let mut dst_playlist = match dst_playlists
             .iter()
             .position(|p| p.name == src_playlist.name)
@@ -87,20 +51,20 @@ pub async fn synchronize(
 
         let mut missing_songs = json!([]);
         let mut no_albums_songs = json!([]);
-
         let mut dst_songs = vec![];
         let mut success = 0;
         let mut total = 0;
 
+        info!("synchronizing playlist \"{}\" ...", src_playlist.name);
         for src_song in src_playlist.songs.iter() {
             if dst_playlist.songs.contains(src_song) {
                 continue;
             }
 
             if src_song.album.is_none() {
-                debug!(
-                    "No album metadata for source song, skipping: {}",
-                    src_song
+                warn!(
+                    "No album metadata for source song \"{}\", skipping",
+                    src_song.name
                 );
                 if debug {
                     no_albums_songs
@@ -114,22 +78,15 @@ pub async fn synchronize(
             total += 1;
 
             let dst_song = dst_api.search_song(src_song).await?;
-            if let Some(s) = dst_song {
-                if src_song.compare(&s) {
-                    dst_songs.push(s);
-                    success += 1;
-                } else {
-                    debug!("Invalid match found for song {}", src_song);
-                    if debug {
-                        missing_songs.as_array_mut().unwrap().push(json!(src_song));
-                    }
-                }
-            } else {
-                debug!("No match found for song: {}", src_song);
+            let Some(dst_song) = dst_song else {
+                debug!("no match found for song: {}", src_song.name);
                 if debug {
                     missing_songs.as_array_mut().unwrap().push(json!(src_song));
                 }
-            }
+                continue;
+            };
+            dst_songs.push(dst_song);
+            success += 1;
         }
         if !dst_songs.is_empty() {
             dst_api
@@ -142,7 +99,7 @@ pub async fn synchronize(
         }
         let conversion_rate = success as f64 / total as f64;
         info!(
-            "Finished converting playlist, conversion rate: {}",
+            "playlist synchronization [ok], conversion rate: {}",
             conversion_rate
         );
 
@@ -151,7 +108,7 @@ pub async fn synchronize(
                 src_playlist.name.clone(),
                 serde_json::to_value(conversion_rate).unwrap(),
             );
-            std::fs::write("json/stats.json", stats.to_string()).unwrap();
+            std::fs::write("debug/stats.json", stats.to_string()).unwrap();
 
             if !missing_songs.as_array().unwrap().is_empty() {
                 missing_output
@@ -163,8 +120,8 @@ pub async fn synchronize(
                     .unwrap()
                     .insert(src_playlist.name.clone(), no_albums_songs);
 
-                std::fs::write("json/missing.json", missing_output.to_string()).unwrap();
-                std::fs::write("json/no_albums.json", no_albums.to_string()).unwrap();
+                std::fs::write("debug/missing_songs.json", missing_output.to_string()).unwrap();
+                std::fs::write("debug/song_with_no_albums.json", no_albums.to_string()).unwrap();
             }
         }
     }

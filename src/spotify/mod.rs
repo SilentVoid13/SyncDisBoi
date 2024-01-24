@@ -32,6 +32,7 @@ use self::model::SpotifyToken;
 
 pub struct SpotifyApi {
     client: reqwest::Client,
+    debug: bool,
 }
 
 impl SpotifyApi {
@@ -88,7 +89,7 @@ impl SpotifyApi {
 
         let client = client.build()?;
 
-        Ok(SpotifyApi { client })
+        Ok(SpotifyApi { client, debug })
     }
 
     fn build_authorization_url(client_id: &str) -> Result<String> {
@@ -210,11 +211,13 @@ impl SpotifyApi {
         if res.status() != StatusCode::OK && res.status() != StatusCode::CREATED {
             return Err(eyre!("Invalid response: {}", res.text().await?));
         }
-        // TODO: change this
-        let text = res.text().await?;
-        std::fs::write("data.json", &text).unwrap();
-        let obj = serde_json::from_str(&text)?;
-        //let json = res.json().await?;
+        let obj = if self.debug {
+            let text = res.text().await?;
+            std::fs::write("debug/spotify_last_req.json", &text).unwrap();
+            serde_json::from_str(&text)?
+        } else {
+            res.json().await?
+        };
         Ok(obj)
     }
 
@@ -245,7 +248,7 @@ impl SpotifyApi {
 
 pub fn push_query(queries: &mut Vec<String>, query: String, max_len: usize) {
     if query.len() > max_len {
-        debug!("Query too long: {}, skipping", query);
+        debug!("hit query limit: {}, skipping", query);
         return;
     }
     queries.push(query);
@@ -343,10 +346,8 @@ impl MusicApi for SpotifyApi {
 
         // TODO: It looks like single quotes have better results compared to double quotes, not sure why
         let mut track_query = format!("track:\"{}\"", song.clean_name());
-
-        // TODO: fix this
         if track_query.len() > max_len {
-            debug!("Can't add track to query, skipping: {}", track_query);
+            warn!("song name is bigger than spotify max search: \"{}\", truncating", track_query);
             // Not the best solution, but it's worth a try
             track_query = track_query[..max_len].to_string();
         }
@@ -371,8 +372,8 @@ impl MusicApi for SpotifyApi {
         }
         // Query: Track + Artist
         for artist_query in artist_queries.iter().rev() {
-            // TODO: It looks like spotify doesn't support multiple artists in search
-            // We have to create one query per artist
+            // INFO: spotify doesn't support multiple artists in search
+            // we have to create one query per artist
             let tr_ar_query = format!("{} {}", track_query, artist_query);
             push_query(&mut queries, tr_ar_query, max_len);
         }
@@ -389,10 +390,9 @@ impl MusicApi for SpotifyApi {
             let res: SpotifySearchResponse = self
                 .make_request(&path, Some(&get_params), None, 50, 0)
                 .await?;
-            let mut res_songs: Songs = res.try_into()?;
+            let res_songs: Songs = res.try_into()?;
             // iterate over top 3 results
             for res_song in res_songs.0.into_iter().take(3) {
-                println!("Query: {}", query);
                 if song.compare(&res_song) {
                     return Ok(Some(res_song));
                 }
@@ -404,7 +404,7 @@ impl MusicApi for SpotifyApi {
 
 #[cfg(test)]
 mod tests {
-    use std::{env, path::PathBuf};
+    use std::env;
 
     use crate::yt_music::YtMusicApi;
 

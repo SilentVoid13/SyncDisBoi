@@ -1,8 +1,5 @@
-use clap::{Args, Parser, Subcommand, ValueEnum};
-use sync_dis_boi::music_api::DynMusicApi;
+use clap::{Parser, Subcommand, ValueEnum};
 use tracing::Level;
-
-use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -50,7 +47,7 @@ pub enum MusicPlatformSrc {
     },
 }
 
-// TODO: Hack to support command chaining with clap
+// INFO: Hack to support command chaining with clap
 // related issue: https://github.com/clap-rs/clap/issues/2222
 #[derive(Subcommand, Clone, Debug)]
 #[command(subcommand_value_name = "DST_PLATFORM")]

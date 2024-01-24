@@ -1,10 +1,13 @@
-use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs, Songs2};
+use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
+use super::{model::YtMusicResponse, YtMusicApi};
 
 use color_eyre::eyre::{eyre, Error, Result};
+use serde::{Deserialize, Serialize};
 use tracing::debug;
 use regex::Regex;
 
-use super::{model::YtMusicResponse, YtMusicApi};
+#[derive(Deserialize, Serialize, Debug)]
+pub struct SearchSongs(pub Vec<Song>);
 
 pub fn parse_duration(duration_str: &str) -> Result<usize> {
     let multipliers = [1, 60, 3600];
@@ -112,15 +115,15 @@ impl TryInto<Songs> for YtMusicResponse {
     }
 }
 
-impl TryInto<Songs2> for YtMusicResponse {
+impl TryInto<SearchSongs> for YtMusicResponse {
     type Error = Error;
 
-    fn try_into(mut self) -> Result<Songs2, Self::Error> {
+    fn try_into(mut self) -> Result<SearchSongs, Self::Error> {
         let mut songs_vec = vec![];
 
         let mrlirs = match self.get_mrlirs() {
             Some(x) => x,
-            None => return Ok(Songs2(songs_vec)),
+            None => return Ok(SearchSongs(songs_vec)),
         };
 
         for mrlir in mrlirs
@@ -167,7 +170,7 @@ impl TryInto<Songs2> for YtMusicResponse {
                     if re_duration.is_match(&text) {
                         duration = parse_duration(&text)?;
                     } else {
-                        debug!("Artist without id: {}", text);
+                        debug!("artist without id: {}", text);
                         artists.push(Artist {
                             id: None,
                             name: text,
@@ -176,7 +179,7 @@ impl TryInto<Songs2> for YtMusicResponse {
                 }
             }
             if album.is_none() || artists.is_empty() || duration == 0 {
-                debug!("Skipping song with missing data: {}", name);
+                debug!("skipping song with missing data: {}", name);
                 continue;
             }
             let song = Song {
@@ -192,7 +195,7 @@ impl TryInto<Songs2> for YtMusicResponse {
             songs_vec.push(song);
         }
 
-        let songs = Songs2(songs_vec);
+        let songs = SearchSongs(songs_vec);
         Ok(songs)
     }
 }

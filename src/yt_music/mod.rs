@@ -1,21 +1,22 @@
 pub mod model;
 mod response;
 
-use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, Songs2, PLAYLIST_DESC};
+use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
 use crate::yt_music::model::{
     YtMusicOAuthToken, YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse,
 };
+use crate::yt_music::response::SearchSongs;
 
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
 use lazy_static::lazy_static;
-use reqwest::header::{HeaderMap, HeaderName};
+use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fmt::Write;
-use std::path::{Path, PathBuf};
-use tracing::{info, warn};
+use std::path::PathBuf;
+use tracing::info;
 
 use self::model::{
     YtMusicContinuationResponse, YtMusicOAuthRefresh, YtMusicOAuthResponse,
@@ -35,6 +36,7 @@ lazy_static! {
 
 pub struct YtMusicApi {
     client: reqwest::Client,
+    debug: bool,
 }
 
 impl YtMusicApi {
@@ -89,7 +91,7 @@ impl YtMusicApi {
         }
         let client = client.build()?;
 
-        Ok(YtMusicApi { client })
+        Ok(YtMusicApi { client, debug })
     }
 
     async fn refresh_token(
@@ -141,8 +143,7 @@ impl YtMusicApi {
             oauth_res.verification_url, oauth_res.user_code
         );
         webbrowser::open(&auth_url)?;
-        info!("Please authorize the app in your browser and press enter");
-        // TODO: Find better solution?
+        info!("please authorize the app in your browser and press enter");
         let mut s = String::new();
         std::io::stdin().read_line(&mut s).unwrap();
 
@@ -188,7 +189,6 @@ impl YtMusicApi {
         let mut continuation = response.get_continuation();
 
         while let Some(cont) = continuation {
-            warn!("continuation found");
             let mut response2: YtMusicContinuationResponse =
                 self.make_request(path, body, Some(&cont)).await?;
             response.merge(&mut response2);
@@ -210,11 +210,13 @@ impl YtMusicApi {
         let endpoint = self.build_endpoint(path, ctoken);
         let res = self.client.post(endpoint).json(&body).send().await?;
         let res = res.error_for_status()?;
-        // TODO: remove this
-        let text = res.text().await?;
-        std::fs::write("json/last_req.json", &text).unwrap();
-        let obj = serde_json::from_str(&text)?;
-        //let obj = res.json().await?;
+        let obj = if self.debug {
+            let text = res.text().await?;
+            std::fs::write("debug/yt_music_last_req.json", &text).unwrap();
+            serde_json::from_str(&text)?
+        } else {
+            res.json().await?
+        };
         Ok(obj)
     }
 
@@ -251,7 +253,6 @@ impl MusicApi for YtMusicApi {
     async fn get_playlists_info(&self) -> Result<Vec<Playlist>> {
         let browse_id = "FEmusic_liked_playlists";
         let body = json!({ "browseId": browse_id });
-        // TODO: Find a way to impl Deserialize for Playlists to avoid the .try_into
         let response = self.paginated_request("browse", &body).await?;
         let playlists: Playlists = response.try_into()?;
         Ok(playlists.0)
@@ -374,17 +375,9 @@ impl MusicApi for YtMusicApi {
             let response = self
                 .make_request::<YtMusicResponse>("search", &body, None)
                 .await?;
-            let res_songs: Songs2 = response.try_into()?;
+            let res_songs: SearchSongs = response.try_into()?;
             // iterate over top 3 results
             for res_song in res_songs.0.into_iter().take(3) {
-                println!(
-                    "'{} {}' ---- '{} {}' ---- {}",
-                    song.name,
-                    song.album.as_ref().unwrap().name,
-                    res_song.name,
-                    res_song.album.as_ref().unwrap().name,
-                    song.compare(&res_song)
-                );
                 if song.compare(&res_song) {
                     return Ok(Some(res_song));
                 }

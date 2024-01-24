@@ -1,5 +1,4 @@
 use regex::Regex;
-use tracing::info;
 
 pub fn clean_enclosure(name: &str, start_tag: char, end_tag: char) -> String {
     if name.contains(start_tag) {

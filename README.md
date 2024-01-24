@@ -6,8 +6,8 @@ SyncDisBoi is a simple, efficient playlist synchronizer between different music 
 
 This project is made for music lovers who want to maintain their playlists across different music streaming services.
 
-> **Disclaimer**: I am not responsible for messing up with your playlists. 
-> This tool doesn't perform any deletion operations by default, but always be careful and make backups.
+> **Disclaimer**: I am not responsible for messing up your playlists. 
+> This tool doesn't perform any deletion operations, but always be cautious and make backups.
 
 ## Accuracy
 

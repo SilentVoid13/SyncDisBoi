@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
 pub struct YtMusicOAuthResponse {
@@ -504,7 +504,6 @@ pub struct YtMusicPlaylistCreateResponse {
     pub playlist_id: String,
 }
 
-
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct YtMusicPlaylistEditResponse {
@@ -515,7 +514,6 @@ impl YtMusicPlaylistEditResponse {
         self.status == "STATUS_SUCCEEDED"
     }
 }
-
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]

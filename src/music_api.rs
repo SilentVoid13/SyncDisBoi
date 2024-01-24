@@ -3,7 +3,6 @@ use color_eyre::eyre::Result;
 use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use strsim::normalized_levenshtein;
-use tracing::debug;
 
 use crate::utils::generic_name_clean;
 
@@ -63,9 +62,6 @@ pub struct Playlists(pub Vec<Playlist>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Songs(pub Vec<Song>);
-// TODO: Remove this
-#[derive(Deserialize, Serialize, Debug)]
-pub struct Songs2(pub Vec<Song>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Playlist {
@@ -90,16 +86,16 @@ impl Song {
         match self.source {
             MusicApiType::Spotify => {
                 let name = generic_name_clean(&self.name);
-                let name = name.split(" - ").next().unwrap();
-                let name = name.split(" pts. ").next().unwrap();
-                let name = name.split(" feat. ").next().unwrap();
+                let name = name.split(" - ").next().unwrap_or(&name);
+                let name = name.split(" pts. ").next().unwrap_or(&name);
+                let name = name.split(" feat. ").next().unwrap_or(&name);
                 name.trim_end().to_string()
             }
             MusicApiType::YtMusic => {
                 let name = generic_name_clean(&self.name);
-                let name = name.split(" - ").next().unwrap();
-                let name = name.split(" pts. ").next().unwrap();
-                let name = name.split(" feat. ").next().unwrap();
+                let name = name.split(" - ").next().unwrap_or(&name);
+                let name = name.split(" pts. ").next().unwrap_or(&name);
+                let name = name.split(" feat. ").next().unwrap_or(&name);
                 name.trim_end().to_string()
             }
         }
@@ -119,7 +115,6 @@ impl Song {
         let name2 = other.clean_name();
         let score = normalized_levenshtein(&name1, &name2).abs();
         if score < 0.8 {
-            debug!("Song score: {} --> {} vs {}", score, name1, name2);
             return false;
         }
 
@@ -149,7 +144,6 @@ impl Song {
                 let name2 = album2.clean_name();
                 let score = normalized_levenshtein(&name1, &name2).abs();
                 if score < 0.8 {
-                    debug!("Album score: {} --> {:?} vs {:?}", score, album1, album2);
                     return false;
                 }
             }
