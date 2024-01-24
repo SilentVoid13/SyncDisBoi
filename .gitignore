@@ -4,8 +4,5 @@
 /playlists
 /songs
 /results
-
-*.txt
 *.json
-*.sh
 .env
