@@ -4,7 +4,7 @@ SyncDisBoi is a simple and efficient tool playlist designed to synchronize playl
 - [Youtube Music](https://music.youtube.com/)
 - [Spotify](https://open.spotify.com/)
 
-It's the perfect solution for music enthusiasts who want to keep their playlists updated across various music streaming platforms and enjoy the various recommendations algorithms.
+It's the perfect solution for music enthusiasts who want to keep their playlists updated across different music streaming platforms and enjoy the various recommendations algorithms.
 
 > **Disclaimer**: While SyncDisBoi doesn't perform any deletion operations, it's always a good practice to backup your playlists. I am not responsible for any unintended changes to your playlists.
 
