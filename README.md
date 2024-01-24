@@ -23,6 +23,7 @@ Notes:
 
 ## Usage
 
+Example command to convert your playlists from Youtube Music to Spotify:
 ```bash
 cargo run --release -- yt-music spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
 ```
@@ -40,7 +41,7 @@ Notes:
 - By default, SyncDisBoi uses the "Youtube for TV" application credentials to request OAuth access.
 - However, you can also create your own OAuth application, grant access to your account email, and then use it in SyncDisBoi by providing its client id and client secret.
 
-### Spotify credentials
+### Spotify
 
 - Visit [https://developer.spotify.com/](https://developer.spotify.com/)
   and create an application.
