@@ -26,10 +26,15 @@ pub struct RootArgs {
 #[command(subcommand_value_name = "SRC_PLATFORM")]
 pub enum MusicPlatformSrc {
     YtMusic {
+        /// The client ID for the Youtube API application
         #[arg(long, env = "YTMUSIC_CLIENT_ID", default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com")]
         client_id: String,
         #[arg(long, env = "YTMUSIC_CLIENT_SECRET", default_value = "SboVhoG9s0rNafixCSGGKXAT")]
+        /// The client secret for the Youtube API application
         client_secret: String,
+        /// Clear the cached ytmusic_oauth.json file
+        #[arg(long)]
+        clear_cache: bool,
         /// The destination music platform
         #[command(subcommand)]
         dst: MusicPlatformDst,
@@ -51,12 +56,17 @@ pub enum MusicPlatformSrc {
 // related issue: https://github.com/clap-rs/clap/issues/2222
 #[derive(Subcommand, Clone, Debug)]
 #[command(subcommand_value_name = "DST_PLATFORM")]
-pub enum MusicPlatformDst{
+pub enum MusicPlatformDst {
     YtMusic {
-        #[arg(long, env = "YTMUSIC_CLIENT_ID")]
+        /// The client ID for the Youtube API application
+        #[arg(long, env = "YTMUSIC_CLIENT_ID", default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com")]
         client_id: String,
-        #[arg(long, env = "YTMUSIC_CLIENT_SECRET")]
+        #[arg(long, env = "YTMUSIC_CLIENT_SECRET", default_value = "SboVhoG9s0rNafixCSGGKXAT")]
+        /// The client secret for the Youtube API application
         client_secret: String,
+        /// Clear the cached ytmusic_oauth.json file
+        #[arg(long)]
+        clear_cache: bool,
     },
     Spotify {
         /// The client ID for the Spotify API application

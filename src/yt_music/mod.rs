@@ -54,6 +54,7 @@ impl YtMusicApi {
         client_id: &str,
         client_secret: &str,
         oauth_token_path: PathBuf,
+        clear_cache: bool,
         debug: bool,
         proxy: Option<&str>,
     ) -> Result<Self> {
@@ -63,10 +64,10 @@ impl YtMusicApi {
             .default_headers(headers)
             .build()?;
 
-        let token = if oauth_token_path.exists() {
-            Self::refresh_token(&client, client_id, client_secret, &oauth_token_path).await?
-        } else {
+        let token = if !oauth_token_path.exists() || clear_cache {
             Self::request_token(&client, client_id, client_secret).await?
+        } else {
+            Self::refresh_token(&client, client_id, client_secret, &oauth_token_path).await?
         };
         // Write new token
         let mut file = std::fs::File::create(&oauth_token_path)?;
@@ -137,7 +138,6 @@ impl YtMusicApi {
         let res = res.error_for_status()?;
         let oauth_res: YtMusicOAuthResponse = res.json().await?;
 
-        dbg!(&oauth_res);
         let auth_url = format!(
             "{}?user_code={}",
             oauth_res.verification_url, oauth_res.user_code
@@ -371,7 +371,6 @@ impl MusicApi for YtMusicApi {
                 "query": query,
                 "params": params,
             });
-            dbg!(query);
             let response = self
                 .make_request::<YtMusicResponse>("search", &body, None)
                 .await?;

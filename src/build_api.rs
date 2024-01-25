@@ -21,6 +21,7 @@ macro_rules! impl_build_api {
                     Self::YtMusic {
                         client_id,
                         client_secret,
+                        clear_cache,
                         ..
                     } => {
                         let oauth_token_path = config_dir.join("ytmusic_oauth.json");
@@ -29,6 +30,7 @@ macro_rules! impl_build_api {
                                 client_id,
                                 client_secret,
                                 oauth_token_path,
+                                *clear_cache,
                                 args.debug,
                                 args.proxy.as_deref(),
                             )

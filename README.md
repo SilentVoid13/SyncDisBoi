@@ -1,6 +1,6 @@
 # SyncDisBoi
 
-SyncDisBoi is a simple and efficient tool playlist designed to synchronize playlists across different music streaming platforms. It currently supports:
+SyncDisBoi is a simple and efficient tool designed to synchronize playlists across different music streaming platforms. It currently supports:
 - [Youtube Music](https://music.youtube.com/)
 - [Spotify](https://open.spotify.com/)
 
@@ -50,6 +50,9 @@ Notes:
 - Copy the application client id and client secret.
 
 You will then need to provide the client id and client secret as arguments for SyncDisBoi.
+
+Notes:
+- After authorizing access for your Spotify account, SyncDisBoi will open the 'http://localhost:8888/callback' URL in your browser. If you get 'Unable to connect' this is normal.
 
 ## Contributing
 
