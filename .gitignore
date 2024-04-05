@@ -6,3 +6,5 @@
 /results
 *.json
 .env
+/.envrc
+/.direnv
