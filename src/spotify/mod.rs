@@ -89,7 +89,7 @@ impl SpotifyApi {
 
         let client = client.build()?;
 
-        Ok(SpotifyApi { client, debug })
+        Ok(Self { client, debug })
     }
 
     fn build_authorization_url(client_id: &str) -> Result<String> {
@@ -264,7 +264,7 @@ impl MusicApi for SpotifyApi {
             "description": PLAYLIST_DESC,
         });
         let res: SpotifyPlaylistResponse =
-            self.make_request(&path, None, Some(body), 50, 0).await?;
+            self.make_request(path, None, Some(body), 50, 0).await?;
         let playlist: Playlist = res.try_into()?;
         Ok(playlist)
     }
@@ -272,7 +272,7 @@ impl MusicApi for SpotifyApi {
     async fn get_playlists_info(&self) -> Result<Vec<Playlist>> {
         let path = "/me/playlists";
         let res: SpotifyPageResponse<SpotifyPlaylistResponse> =
-            self.paginated_request(&path, None, 50).await?;
+            self.paginated_request(path, None, 50).await?;
         let playlists: Playlists = res.try_into()?;
         Ok(playlists.0)
     }
@@ -388,7 +388,7 @@ impl MusicApi for SpotifyApi {
         while let Some(query) = queries.pop() {
             let get_params = [("type", "track"), ("q", &query)];
             let res: SpotifySearchResponse = self
-                .make_request(&path, Some(&get_params), None, 50, 0)
+                .make_request(path, Some(&get_params), None, 50, 0)
                 .await?;
             let res_songs: Songs = res.try_into()?;
             // iterate over top 3 results
@@ -420,6 +420,7 @@ mod tests {
             &yt_client_id,
             &yt_client_secret,
             oauth_token_path,
+            false,
             false,
             None,
         )

@@ -12,10 +12,8 @@ pub struct SearchSongs(pub Vec<Song>);
 pub fn parse_duration(duration_str: &str) -> Result<usize> {
     let multipliers = [1, 60, 3600];
     let mut seconds = 0;
-    let mut i = 0;
-    for part in duration_str.rsplit(":") {
+    for (i, part) in duration_str.rsplit(':').enumerate() {
         seconds += part.parse::<usize>()? * multipliers[i];
-        i += 1;
     }
     Ok(seconds * 1000)
 }
@@ -166,16 +164,14 @@ impl TryInto<SearchSongs> for YtMusicResponse {
                             name: text,
                         });
                     }
+                } else if re_duration.is_match(&text) {
+                    duration = parse_duration(&text)?;
                 } else {
-                    if re_duration.is_match(&text) {
-                        duration = parse_duration(&text)?;
-                    } else {
-                        debug!("artist without id: {}", text);
-                        artists.push(Artist {
-                            id: None,
-                            name: text,
-                        });
-                    }
+                    debug!("artist without id: {}", text);
+                    artists.push(Artist {
+                        id: None,
+                        name: text,
+                    });
                 }
             }
             if album.is_none() || artists.is_empty() || duration == 0 {

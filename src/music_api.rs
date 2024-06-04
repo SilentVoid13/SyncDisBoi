@@ -6,7 +6,7 @@ use strsim::normalized_levenshtein;
 
 use crate::utils::generic_name_clean;
 
-pub const PLAYLIST_DESC: &'static str = "Playlist created by SyncDisBoi";
+pub const PLAYLIST_DESC: &str = "Playlist created by SyncDisBoi";
 
 pub type DynMusicApi = Box<dyn MusicApi + Sync>;
 
@@ -87,15 +87,15 @@ impl Song {
             MusicApiType::Spotify => {
                 let name = generic_name_clean(&self.name);
                 let name = name.split(" - ").next().unwrap_or(&name);
-                let name = name.split(" pts. ").next().unwrap_or(&name);
-                let name = name.split(" feat. ").next().unwrap_or(&name);
+                let name = name.split(" pts. ").next().unwrap_or(name);
+                let name = name.split(" feat. ").next().unwrap_or(name);
                 name.trim_end().to_string()
             }
             MusicApiType::YtMusic => {
                 let name = generic_name_clean(&self.name);
                 let name = name.split(" - ").next().unwrap_or(&name);
-                let name = name.split(" pts. ").next().unwrap_or(&name);
-                let name = name.split(" feat. ").next().unwrap_or(&name);
+                let name = name.split(" pts. ").next().unwrap_or(name);
+                let name = name.split(" feat. ").next().unwrap_or(name);
                 name.trim_end().to_string()
             }
         }

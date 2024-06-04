@@ -33,26 +33,24 @@ pub struct YtMusicResponse {
 impl YtMusicResponse {
     pub fn merge(&mut self, other: &mut YtMusicContinuationResponse) -> Option<()> {
         if let Some(gr) = self.get_grid_renderer() {
-            Some(
-                gr.items.append(
-                    &mut other
-                        .continuation_contents
-                        .grid_continuation
-                        .as_mut()?
-                        .items,
-                ),
-            )
+            gr.items.append(
+                &mut other
+                    .continuation_contents
+                    .grid_continuation
+                    .as_mut()?
+                    .items,
+            );
+            Some(())
         } else if let Some(mpsr) = self.get_music_playlist_shelf_renderer() {
-            Some(
-                mpsr.contents.as_mut()?.append(
-                    other
-                        .continuation_contents
-                        .music_playlist_shelf_continuation
-                        .as_mut()?
-                        .contents
-                        .as_mut()?,
-                ),
-            )
+            mpsr.contents.as_mut()?.append(
+                other
+                    .continuation_contents
+                    .music_playlist_shelf_continuation
+                    .as_mut()?
+                    .contents
+                    .as_mut()?,
+            );
+            Some(())
         } else {
             None
         }
@@ -120,19 +118,15 @@ impl YtMusicResponse {
     }
 
     pub fn get_grid_renderer(&mut self) -> Option<&mut GridRenderer> {
-        Some(
-            self.get_section_renderer_content()?
+        self.get_section_renderer_content()?
                 .grid_renderer
-                .as_mut()?,
-        )
+                .as_mut()
     }
 
     pub fn get_music_playlist_shelf_renderer(&mut self) -> Option<&mut MusicPlaylistShelfRenderer> {
-        Some(
-            self.get_section_renderer_content()?
+        self.get_section_renderer_content()?
                 .music_playlist_shelf_renderer
-                .as_mut()?,
-        )
+                .as_mut()
     }
 
     pub fn get_continuation(&mut self) -> Option<String> {
@@ -234,7 +228,7 @@ impl MusicResponsiveListItemRenderer {
     }
 
     pub fn get_col_run_id(&self, idx: usize, run_i: usize, flex: bool) -> Option<String> {
-        Some(self.get_col_runs(idx, flex)?.get(run_i)?.get_id()?)
+        self.get_col_runs(idx, flex)?.get(run_i)?.get_id()
     }
 
     pub fn get_col_runs(&self, idx: usize, flex: bool) -> Option<&Vec<Run>> {
@@ -250,7 +244,7 @@ impl MusicResponsiveListItemRenderer {
                 .get(idx)?
                 .music_responsive_list_item_fixed_column_renderer
         };
-        Some(mrlifcr.text.runs.as_ref()?)
+        mrlifcr.text.runs.as_ref()
     }
 
     #[allow(dead_code)]
@@ -302,11 +296,11 @@ pub struct MusicTwoRowItemRenderer {
 }
 impl MusicTwoRowItemRenderer {
     pub fn get_id(&self) -> Option<String> {
-        Some(self.title.runs.as_ref()?.get(0)?.get_id()?)
+        self.title.runs.as_ref()?.first()?.get_id()
     }
 
     pub fn get_name(&self) -> Option<String> {
-        Some(self.title.runs.as_ref()?.get(0)?.get_text())
+        Some(self.title.runs.as_ref()?.first()?.get_text())
     }
 }
 #[derive(Deserialize, Debug)]
@@ -316,7 +310,7 @@ pub struct Continuation {
 }
 impl Continuation {
     pub fn get_continuation(&self) -> String {
-        return self.next_continuation_data.continuation.clone();
+        self.next_continuation_data.continuation.clone()
     }
 }
 #[derive(Deserialize, Debug)]

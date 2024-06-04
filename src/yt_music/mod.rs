@@ -101,7 +101,7 @@ impl YtMusicApi {
         client_secret: &str,
         oauth_token_path: &PathBuf,
     ) -> Result<YtMusicOAuthToken> {
-        let reader = std::fs::File::open(&oauth_token_path)?;
+        let reader = std::fs::File::open(oauth_token_path)?;
         let mut oauth_token: YtMusicOAuthToken = serde_json::from_reader(reader)?;
 
         let mut params = HashMap::new();
@@ -221,8 +221,8 @@ impl YtMusicApi {
     }
 
     pub fn clean_playlist_id(id: &str) -> String {
-        if id.starts_with("VL") {
-            return id[2..].to_string();
+        if let Some(id) = id.strip_prefix("VL") {
+            return id.to_string();
         }
         id.to_string()
     }

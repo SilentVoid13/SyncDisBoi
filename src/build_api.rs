@@ -1,14 +1,14 @@
 use crate::args::{MusicPlatformDst, MusicPlatformSrc, RootArgs};
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
-use std::path::PathBuf;
+use std::path::Path;
 use sync_dis_boi::music_api::DynMusicApi;
 use sync_dis_boi::spotify::SpotifyApi;
 use sync_dis_boi::yt_music::YtMusicApi;
 
 #[async_trait]
 pub trait BuildApi {
-    async fn parse(&self, args: &RootArgs, config_dir: &PathBuf) -> Result<DynMusicApi>;
+    async fn parse(&self, args: &RootArgs, config_dir: &Path) -> Result<DynMusicApi>;
 }
 
 #[macro_export]
@@ -16,7 +16,7 @@ macro_rules! impl_build_api {
     ($id:ident) => {
         #[async_trait]
         impl BuildApi for $id {
-            async fn parse(&self, args: &RootArgs, config_dir: &PathBuf) -> Result<DynMusicApi> {
+            async fn parse(&self, args: &RootArgs, config_dir: &Path) -> Result<DynMusicApi> {
                 let api: DynMusicApi = match &self {
                     Self::YtMusic {
                         client_id,
