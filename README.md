@@ -3,6 +3,7 @@
 SyncDisBoi is a simple and efficient tool designed to synchronize playlists across different music streaming platforms. It currently supports:
 - [Youtube Music](https://music.youtube.com/)
 - [Spotify](https://open.spotify.com/)
+- [Tidal](https://tidal.com/)
 
 It's the perfect solution for music enthusiasts who want to keep their playlists updated across different music streaming platforms and enjoy the various recommendations algorithms.
 
@@ -23,12 +24,27 @@ Notes:
 
 ## Usage
 
-Example command to convert your playlists from Youtube Music to Spotify:
 ```bash
+# convert your playlists from Youtube Music to Spotify
 cargo run --release -- yt-music spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
+# convert your playlists from Tidal to Youtube Music
+cargo run --release -- tidal yt-music
 ```
 
 To use SyncDisBoi, you need to set up account access for the API of the corresponding music platform.
+
+### Spotify API
+
+- Visit [https://developer.spotify.com/](https://developer.spotify.com/)
+  and create an application.
+- Add [https://localhost:8888/callback](https://localhost:8888/callback) as a
+  redirect URI in your application settings.
+- Copy the application client id and client secret.
+
+You will then need to provide the client id and client secret as arguments for SyncDisBoi.
+
+Notes:
+- After authorizing access for your Spotify account, SyncDisBoi will open the 'http://localhost:8888/callback' URL in your browser. If you get 'Unable to connect' this is normal.
 
 ### Youtube Music API
 
@@ -41,18 +57,16 @@ Notes:
 - By default, SyncDisBoi uses the "Youtube for TV" application credentials to request OAuth access.
 - However, you can also create your own OAuth application, grant access to your account email, and then use it in SyncDisBoi by providing its client id and client secret.
 
-### Spotify
+### Tidal API
 
-- Visit [https://developer.spotify.com/](https://developer.spotify.com/)
-  and create an application.
-- Add [https://localhost:8888/callback](https://localhost:8888/callback) as a
-  redirect URI in your application settings.
-- Copy the application client id and client secret.
+- On the first run, SyncDisBoi will open up a browser tab to request OAuth access for your Tidal Account.
+- Authorize the application in your browser, then press ENTER in the CLI to continue.
 
-You will then need to provide the client id and client secret as arguments for SyncDisBoi.
+The OAuth token will be cached in `~/.config/SyncDisBoi/tidal_oauth.json` (on Linux) for future use.
 
 Notes:
-- After authorizing access for your Spotify account, SyncDisBoi will open the 'http://localhost:8888/callback' URL in your browser. If you get 'Unable to connect' this is normal.
+- By default, SyncDisBoi uses Tidal's "Android Auto" application credentials to request OAuth access.
+- However, you can also create your own Tidal application and then use it in SyncDisBoi by providing its client id and client secret.
 
 ## Contributing
 
