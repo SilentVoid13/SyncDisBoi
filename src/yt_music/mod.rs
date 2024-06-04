@@ -15,6 +15,7 @@ use serde::de::DeserializeOwned;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::io::Read;
 use std::path::PathBuf;
 use tracing::info;
 
@@ -84,7 +85,6 @@ impl YtMusicApi {
         let mut client = reqwest::Client::builder()
             .cookie_store(true)
             .default_headers(headers);
-
         if let Some(proxy) = proxy {
             client = client
                 .proxy(reqwest::Proxy::all(proxy)?)
@@ -104,11 +104,12 @@ impl YtMusicApi {
         let reader = std::fs::File::open(oauth_token_path)?;
         let mut oauth_token: YtMusicOAuthToken = serde_json::from_reader(reader)?;
 
-        let mut params = HashMap::new();
-        params.insert("client_id", client_id);
-        params.insert("client_secret", client_secret);
-        params.insert("grant_type", "refresh_token");
-        params.insert("refresh_token", &oauth_token.refresh_token);
+        let params = json!({
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "grant_type": "refresh_token",
+            "refresh_token": &oauth_token.refresh_token,
+        });
         let res = client
             .post(Self::OAUTH_TOKEN_URL)
             .form(&params)
@@ -127,9 +128,10 @@ impl YtMusicApi {
         client_secret: &str,
     ) -> Result<YtMusicOAuthToken> {
         // 1. request access
-        let mut params = HashMap::new();
-        params.insert("client_id", client_id);
-        params.insert("scope", Self::OAUTH_SCOPE);
+        let params = json!({
+            "client_id": client_id,
+            "scope": Self::OAUTH_SCOPE,
+        });
         let res = client
             .post(Self::OAUTH_CODE_URL)
             .form(&params)
@@ -144,8 +146,7 @@ impl YtMusicApi {
         );
         webbrowser::open(&auth_url)?;
         info!("please authorize the app in your browser and press enter");
-        let mut s = String::new();
-        std::io::stdin().read_line(&mut s).unwrap();
+        std::io::stdin().read_exact(&mut [0]).unwrap();
 
         // 2. request the token
         let mut params = HashMap::new();
@@ -337,31 +338,7 @@ impl MusicApi for YtMusicApi {
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
-        let track_name = song.clean_name();
-
-        let mut queries = vec![];
-
-        // Query: Track + Album
-        if let Some(album) = song.album.as_ref() {
-            let album_name = album.clean_name();
-            let tr_al_query = format!("{} {}", track_name, album_name);
-            queries.push(tr_al_query);
-        }
-        // Query: Track + Artist
-        for artist in song.artists.iter().rev() {
-            let artist_name = artist.clean_name();
-            let tr_ar_query = format!("{} {}", track_name, artist_name);
-            queries.push(tr_ar_query);
-        }
-        // Query: Track + Artist + Album
-        if let Some(album) = song.album.as_ref() {
-            let album_name = album.clean_name();
-            for artist in song.artists.iter().rev() {
-                let artist_name = artist.clean_name();
-                let tr_ar_al_query = format!("{} {} {}", track_name, artist_name, album_name);
-                queries.push(tr_ar_al_query);
-            }
-        }
+        let mut queries = song.build_queries();
 
         let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
         let params = format!("EgWKAQI{}{}", "I", ignore_spelling);
@@ -382,7 +359,7 @@ impl MusicApi for YtMusicApi {
                 }
             }
         }
-        return Ok(None);
+        Ok(None)
     }
 }
 

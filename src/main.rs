@@ -42,7 +42,6 @@ async fn main() -> Result<()> {
         .finish()
         .with(filter)
         .init();
-
     debug!("logging level: {}", level);
 
     let src_api = args.src.parse(&args, &config_dir).await?;

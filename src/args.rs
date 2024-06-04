@@ -50,6 +50,20 @@ pub enum MusicPlatformSrc {
         #[command(subcommand)]
         dst: MusicPlatformDst,
     },
+    Tidal {
+        /// The client ID for the Tidal API application
+        #[arg(long, env = "TIDAL_CLIENT_ID", default_value = "zU4XHVVkc2tDPo4t")]
+        client_id: String,
+        #[arg(long, env = "TIDAL_CLIENT_SECRET", default_value = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4=")]
+        /// The client secret for the Tidal API application
+        client_secret: String,
+        /// Clear the cached tidal_oauth.json file
+        #[arg(long)]
+        clear_cache: bool,
+        /// The destination music platform
+        #[command(subcommand)]
+        dst: MusicPlatformDst,
+    }
 }
 
 // INFO: Hack to support command chaining with clap
@@ -76,6 +90,17 @@ pub enum MusicPlatformDst {
         #[arg(long, env = "SPOTIFY_CLIENT_SECRET")]
         client_secret: String,
     },
+    Tidal {
+        /// The client ID for the Tidal API application
+        #[arg(long, env = "TIDAL_CLIENT_ID", default_value = "zU4XHVVkc2tDPo4t")]
+        client_id: String,
+        #[arg(long, env = "TIDAL_CLIENT_SECRET", default_value = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4=")]
+        /// The client secret for the Tidal API application
+        client_secret: String,
+        /// Clear the cached tidal_oauth.json file
+        #[arg(long)]
+        clear_cache: bool,
+    }
 }
 
 #[derive(ValueEnum, Clone, Debug)]

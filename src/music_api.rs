@@ -55,6 +55,7 @@ pub trait MusicApi {
 pub enum MusicApiType {
     Spotify,
     YtMusic,
+    Tidal,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -84,14 +85,7 @@ pub struct Song {
 impl Song {
     pub fn clean_name(&self) -> String {
         match self.source {
-            MusicApiType::Spotify => {
-                let name = generic_name_clean(&self.name);
-                let name = name.split(" - ").next().unwrap_or(&name);
-                let name = name.split(" pts. ").next().unwrap_or(name);
-                let name = name.split(" feat. ").next().unwrap_or(name);
-                name.trim_end().to_string()
-            }
-            MusicApiType::YtMusic => {
+            MusicApiType::Spotify | MusicApiType::Tidal | MusicApiType::YtMusic => {
                 let name = generic_name_clean(&self.name);
                 let name = name.split(" - ").next().unwrap_or(&name);
                 let name = name.split(" pts. ").next().unwrap_or(name);
@@ -150,6 +144,34 @@ impl Song {
         }
 
         true
+    }
+
+    pub fn build_queries(&self) -> Vec<String> {
+        let mut queries = vec![];
+        let track_name = self.clean_name();
+
+        // Query: Track + Album
+        if let Some(album) = self.album.as_ref() {
+            let album_name = album.clean_name();
+            let tr_al_query = format!("{} {}", track_name, album_name);
+            queries.push(tr_al_query);
+        }
+        // Query: Track + Artist
+        for artist in self.artists.iter().rev() {
+            let artist_name = artist.clean_name();
+            let tr_ar_query = format!("{} {}", track_name, artist_name);
+            queries.push(tr_ar_query);
+        }
+        // Query: Track + Artist + Album
+        if let Some(album) = self.album.as_ref() {
+            let album_name = album.clean_name();
+            for artist in self.artists.iter().rev() {
+                let artist_name = artist.clean_name();
+                let tr_ar_al_query = format!("{} {} {}", track_name, artist_name, album_name);
+                queries.push(tr_ar_al_query);
+            }
+        }
+        queries
     }
 }
 

@@ -5,6 +5,7 @@ use std::path::Path;
 use sync_dis_boi::music_api::DynMusicApi;
 use sync_dis_boi::spotify::SpotifyApi;
 use sync_dis_boi::yt_music::YtMusicApi;
+use sync_dis_boi::tidal::TidalApi;
 
 #[async_trait]
 pub trait BuildApi {
@@ -27,6 +28,25 @@ macro_rules! impl_build_api {
                         let oauth_token_path = config_dir.join("ytmusic_oauth.json");
                         Box::new(
                             YtMusicApi::new(
+                                client_id,
+                                client_secret,
+                                oauth_token_path,
+                                *clear_cache,
+                                args.debug,
+                                args.proxy.as_deref(),
+                            )
+                            .await?,
+                        )
+                    }
+                    Self::Tidal {
+                        client_id,
+                        client_secret,
+                        clear_cache,
+                        ..
+                    } => {
+                        let oauth_token_path = config_dir.join("tidal_oauth.json");
+                        Box::new(
+                            TidalApi::new(
                                 client_id,
                                 client_secret,
                                 oauth_token_path,
@@ -67,6 +87,7 @@ impl MusicPlatformSrc {
         match self {
             Self::YtMusic { dst, .. } => dst,
             Self::Spotify { dst, .. } => dst,
+            Self::Tidal { dst, .. } => dst,
         }
     }
 }
