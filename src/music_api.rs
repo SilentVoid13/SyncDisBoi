@@ -181,6 +181,8 @@ impl PartialEq for Song {
     }
 }
 
+impl Eq for Song {}
+
 impl std::fmt::Display for Song {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let artists = self

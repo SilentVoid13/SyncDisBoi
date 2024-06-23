@@ -112,21 +112,27 @@ impl YtMusicResponse {
                         || item.grid_renderer.is_some()
                         || item.music_shelf_renderer.is_some()
                 })
+        } else if let Some(tr) = self.contents.two_column_browse_results_renderer.as_mut() {
+            tr.secondary_contents
+                .section_list_renderer
+                .contents
+                .iter_mut()
+                .find(|item| {
+                    item.music_playlist_shelf_renderer.is_some() || item.grid_renderer.is_some()
+                })
         } else {
             None
         }
     }
 
     pub fn get_grid_renderer(&mut self) -> Option<&mut GridRenderer> {
-        self.get_section_renderer_content()?
-                .grid_renderer
-                .as_mut()
+        self.get_section_renderer_content()?.grid_renderer.as_mut()
     }
 
     pub fn get_music_playlist_shelf_renderer(&mut self) -> Option<&mut MusicPlaylistShelfRenderer> {
         self.get_section_renderer_content()?
-                .music_playlist_shelf_renderer
-                .as_mut()
+            .music_playlist_shelf_renderer
+            .as_mut()
     }
 
     pub fn get_continuation(&mut self) -> Option<String> {
@@ -159,8 +165,15 @@ pub struct Content<T> {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponseContent {
+    pub two_column_browse_results_renderer: Option<TwoColumnBrowseResultsRenderer>,
     pub single_column_browse_results_renderer: Option<SingleColumnBrowseResultsRenderer>,
     pub tabbed_search_results_renderer: Option<TabbedSearchResultsRenderer>,
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TwoColumnBrowseResultsRenderer {
+    pub secondary_contents: TabRendererContent,
+    pub tabs: [Tab; 1],
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
