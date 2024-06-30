@@ -53,14 +53,7 @@
                 pkgsStatic.openssl
               ]
               else [openssl]
-            )
-            ++ lib.optionals stdenv.isDarwin
-            [
-              buildPackages.darwin.apple_sdk.frameworks.CoreServices
-              darwin.apple_sdk.frameworks.CoreServices
-              buildPackages.darwin.apple_sdk.frameworks.SystemConfiguration
-              darwin.apple_sdk.frameworks.SystemConfiguration
-            ];
+            );
 
         nativeBuildInputs = pkgs:
           with pkgs;
@@ -69,9 +62,7 @@
             ]
             ++ lib.optionals stdenv.isDarwin
             [
-              buildPackages.darwin.apple_sdk.frameworks.CoreServices
               darwin.apple_sdk.frameworks.CoreServices
-              buildPackages.darwin.apple_sdk.frameworks.SystemConfiguration
               darwin.apple_sdk.frameworks.SystemConfiguration
             ];
 
