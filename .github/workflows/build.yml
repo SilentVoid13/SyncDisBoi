@@ -18,29 +18,34 @@ name: CI
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ${{matrix.os}}
     steps:
       - uses: actions/checkout@v4
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v4
       - name: Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v2
-      - name: Build ${{ matrix.host }} binary
+      - name: Build ${{ matrix.target }} binary
         run: |
-          nix build -L .#${{matrix.host}}.release.SyncDisBoi
+          nix build -L .#${{matrix.target}}.release.SyncDisBoi
           mkdir artifacts/
           cp result/bin/* artifacts
           cd artifacts
-          ls | xargs -i mv {} ${{matrix.host}}-{}
+          ls | xargs -i mv {} ${{matrix.target}}-{}
       - uses: actions/upload-artifact@v4
         with:
-          name: "${{ matrix.host }}-sync_dis_boi"
+          name: "${{ matrix.target }}-sync_dis_boi"
           path: "artifacts/*"
     strategy:
       matrix:
-        host:
+        os: ubuntu-latest
+        target:
           - x86_64-linux-musl
           - aarch64-linux-musl
+          - windows64
+        include:
+          - os: macos-latest
+            target: aarch64-darwin
   release:
     name: Release
     needs: build

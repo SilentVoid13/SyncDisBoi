@@ -45,9 +45,13 @@
         ];
 
         buildInputs = pkgs:
-          with pkgs; [
-            pkgsStatic.openssl
-          ];
+          with pkgs;
+          # if the target is windows, we don't use the musl static openssl
+            if (stdenv.isLinux || stdenv.isDarwin)
+            then [
+              pkgsStatic.openssl
+            ]
+            else [openssl];
 
         nativeBuildInputs = pkgs:
           with pkgs; [
