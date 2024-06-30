@@ -178,11 +178,11 @@
         "systems": "systems_4"
       },
       "locked": {
-        "lastModified": 1719746652,
-        "narHash": "sha256-nTmrt350p1rDLEyj8GcZB9M5jKSO6Qs1bYxgEbwaTz0=",
+        "lastModified": 1719757620,
+        "narHash": "sha256-LhbbTrISdKEBkxM+Hh/UlfDIbQTmZEzk3Osu3gw7OBA=",
         "owner": "SilentVoid13",
         "repo": "flakebox",
-        "rev": "a84e020d35cb388289705e62d9bafd05ed942709",
+        "rev": "060a8f6c4fbdda1ad12825de27058b2d98d0f551",
         "type": "github"
       },
       "original": {

@@ -39,8 +39,8 @@ jobs:
     strategy:
       matrix:
         host:
-          - x86_64-linux
-          - aarch64-linux
+          - x86_64-linux-musl
+          - aarch64-linux-musl
   release:
     name: Release
     needs: build

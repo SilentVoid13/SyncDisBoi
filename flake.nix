@@ -45,7 +45,9 @@
         ];
 
         buildInputs = pkgs:
-          with pkgs; [openssl];
+          with pkgs; [
+            pkgsStatic.openssl
+          ];
 
         nativeBuildInputs = pkgs:
           with pkgs; [
