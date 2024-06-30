@@ -27,7 +27,7 @@ jobs:
     - name: Magic Nix Cache
       uses: DeterminateSystems/magic-nix-cache-action@v2
     - name: Build ${{ matrix.host }} binary
-      run: 'nix -L .#${{matrix.host}}.release.SyncDisBoi'
+      run: 'nix build -L .#${{matrix.host}}.release.SyncDisBoi'
     strategy:
       matrix:
         host:
