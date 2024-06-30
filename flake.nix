@@ -53,7 +53,11 @@
                 pkgsStatic.openssl
               ]
               else [openssl]
-            );
+            )
+            ++ lib.optionals stdenv.isDarwin
+            [
+              buildPackages.darwin.apple_sdk.frameworks
+            ];
 
         nativeBuildInputs = pkgs:
           with pkgs;
@@ -61,9 +65,9 @@
               pkgsBuildTarget.pkg-config
             ]
             ++ lib.optionals stdenv.isDarwin
-            (with darwin.apple_sdk.frameworks; [
-              CoreServices
-            ]);
+            [
+              buildPackages.darwin.apple_sdk.frameworks
+            ];
 
         buildSrc = flakeboxLib.filterSubPaths {
           root = builtins.path {
@@ -81,12 +85,6 @@
             craneLib = craneLib'.overrideArgs {
               pname = project_name;
               src = buildSrc;
-              depsBuildBuild =
-                []
-                ++ pkgs.lib.optionals pkgs.stdenv.isDarwin
-                (with pkgs.darwin.apple_sdk.frameworks; [
-                  CoreServices
-                ]);
             };
           in {
             ${project_name} = craneLib.buildPackage {};
