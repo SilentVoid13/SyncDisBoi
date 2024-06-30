@@ -8,3 +8,4 @@
 .env
 /.envrc
 /.direnv
+/result

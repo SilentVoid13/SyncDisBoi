@@ -5,7 +5,7 @@
     nixpkgs.url = "nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     flakebox = {
-      url = "github:rustshop/flakebox";
+      url = "github:SilentVoid13/flakebox";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -26,9 +26,9 @@
 
         flakeboxLib = flakebox.lib.${system} {
           config = {
+            github.ci.enable = false;
             just.enable = false;
             convco.enable = false;
-            github.ci.workflows.flakebox-flakehub-publish.enable = false;
             git.commit-msg.enable = false;
             git.commit-template.enable = false;
             git.pre-commit.enable = false;
@@ -44,13 +44,13 @@
           "src"
         ];
 
-        buildInputs = with pkgs; [
-          openssl
-        ];
+        buildInputs = pkgs:
+          with pkgs; [openssl];
 
-        nativeBuildInputs = with pkgs; [
-          pkg-config
-        ];
+        nativeBuildInputs = pkgs:
+          with pkgs; [
+            pkgsBuildTarget.pkg-config
+          ];
 
         buildSrc = flakeboxLib.filterSubPaths {
           root = builtins.path {
@@ -60,22 +60,26 @@
           paths = buildPaths;
         };
 
-        multiBuild = (flakeboxLib.craneMultiBuild {}) (craneLib': let
-          craneLib = craneLib'.overrideArgs {
-            pname = project_name;
-            src = buildSrc;
-            inherit buildInputs nativeBuildInputs;
-          };
-        in {
-          ${project_name} = craneLib.buildPackage {};
-        });
+        multiBuild =
+          (flakeboxLib.craneMultiBuild {
+            inherit buildInputs;
+            inherit nativeBuildInputs;
+          }) (craneLib': let
+            craneLib = craneLib'.overrideArgs {
+              pname = project_name;
+              src = buildSrc;
+            };
+          in {
+            ${project_name} = craneLib.buildPackage {};
+          });
       in {
         packages.default = multiBuild.${project_name};
 
         legacyPackages = multiBuild;
 
         devShells = flakeboxLib.mkShells {
-          inherit buildInputs nativeBuildInputs;
+          buildInputs = buildInputs pkgs;
+          nativeBuildInputs = nativeBuildInputs pkgs;
         };
       }
     );

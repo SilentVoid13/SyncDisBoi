@@ -1,0 +1,44 @@
+name: CI
+'on':
+  merge_group:
+    branches:
+    - master
+    - main
+  pull_request:
+    branches:
+    - master
+    - main
+  push:
+    branches:
+    - master
+    - main
+    tags:
+    - v*
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v4
+    - name: Magic Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@v2
+    - name: Build ${{ matrix.host }} binary
+      run: 'nix -L .#${{matrix.host}}.release.SyncDisBoi'
+    strategy:
+      matrix:
+        host:
+        - x86_64-linux
+        - aarch64-linux
+  flake:
+    name: Flake self-check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Check Nix flake inputs
+      uses: DeterminateSystems/flake-checker-action@v5
+      with:
+        fail-mode: true
