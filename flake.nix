@@ -47,11 +47,17 @@
         buildInputs = pkgs:
           with pkgs;
           # if the target is windows, we don't use the musl static openssl
-            if (stdenv.isLinux || stdenv.isDarwin)
-            then [
-              pkgsStatic.openssl
-            ]
-            else [openssl];
+            (
+              if (stdenv.isLinux || stdenv.isDarwin)
+              then [
+                pkgsStatic.openssl
+              ]
+              else [openssl]
+            )
+            ++ lib.optionals stdenv.isDarwin
+            (with darwin.apple_sdk.frameworks; [
+              CoreServices
+            ]);
 
         nativeBuildInputs = pkgs:
           with pkgs; [
