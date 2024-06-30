@@ -53,17 +53,19 @@
                 pkgsStatic.openssl
               ]
               else [openssl]
-            );
+            )
+            ++ lib.optionals stdenv.isDarwin
+            [
+              darwin.apple_sdk.frameworks.CoreFoundation
+              darwin.apple_sdk.frameworks.CoreServices
+              darwin.apple_sdk.frameworks.SystemConfiguration
+              darwin.apple_sdk.frameworks.Security
+            ];
 
         nativeBuildInputs = pkgs:
           with pkgs;
             [
               pkgsBuildTarget.pkg-config
-            ]
-            ++ lib.optionals stdenv.isDarwin
-            [
-              darwin.apple_sdk.frameworks.CoreServices
-              darwin.apple_sdk.frameworks.SystemConfiguration
             ];
 
         buildSrc = flakeboxLib.filterSubPaths {
