@@ -2,43 +2,54 @@ name: CI
 'on':
   merge_group:
     branches:
-    - master
-    - main
+      - master
+      - main
   pull_request:
     branches:
-    - master
-    - main
+      - master
+      - main
   push:
     branches:
-    - master
-    - main
+      - master
+      - main
     tags:
-    - v*
+      - v*
   workflow_dispatch: {}
-
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Install Nix
-      uses: DeterminateSystems/nix-installer-action@v4
-    - name: Magic Nix Cache
-      uses: DeterminateSystems/magic-nix-cache-action@v2
-    - name: Build ${{ matrix.host }} binary
-      run: 'nix build -L .#${{matrix.host}}.release.SyncDisBoi'
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Build ${{ matrix.host }} binary
+        run: 'nix build -L .#${{matrix.host}}.release.SyncDisBoi'
     strategy:
       matrix:
         host:
-        - x86_64-linux
-        - aarch64-linux
+          - x86_64-linux
+          - aarch64-linux
   flake:
     name: Flake self-check
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Check Nix flake inputs
-      uses: DeterminateSystems/flake-checker-action@v5
-      with:
-        fail-mode: true
+      - uses: actions/checkout@v4
+      - name: Check Nix flake inputs
+        uses: DeterminateSystems/flake-checker-action@v5
+        with:
+          fail-mode: true
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ncipollo/release-action@v1
+        with:
+          artifacts: "result/bin/sync_dis_boi"
