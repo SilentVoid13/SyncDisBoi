@@ -40,18 +40,19 @@ jobs:
     name: Release
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          path: "artifacts"
           pattern: "*-sync_dis_boi"
           merge-multiple: true
+      - name: Display structure of downloaded files
+        run: ls -R
       - uses: ncipollo/release-action@v1
         with:
-          artifacts: "*-sync_dis_boi"
+          artifacts: "artifacts/*"
   flake:
     name: Flake self-check
     runs-on: ubuntu-latest
