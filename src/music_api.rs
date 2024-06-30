@@ -112,12 +112,13 @@ impl Song {
             return false;
         }
 
-        // INFO: We can't really compare artists names since they are not always the same order
-        // For certain platforms they are included in the song name but not the metadata
+        // INFO: We can't really compare artists names since they are not always the
+        // same order For certain platforms they are included in the song name
+        // but not the metadata
 
         // Check song duration resemblance
-        // INFO: Can't do that, since YtMusic duration is garbage, it's incorrect on certain
-        // songs
+        // INFO: Can't do that, since YtMusic duration is garbage, it's incorrect on
+        // certain songs
         //let dur1 = self.duration / 1000;
         //let dur2 = other.duration / 1000;
         //if !(dur1 - 1..dur1 + 1).contains(&dur2) {
@@ -131,7 +132,8 @@ impl Song {
         if let (Some(album1), Some(album2)) = (&self.album, &other.album) {
             // INFO: Sometimes Youtube Music maps the album song to the Youtube Video
             // Sometimes, the album song is just suppressed from the 'Songs' filter
-            // In these cases, we can get the single instead so we shouldn't compare album names
+            // In these cases, we can get the single instead so we shouldn't compare album
+            // names
             if !self.is_single() && !other.is_single() {
                 // Check album name resemblance
                 let name1 = album1.clean_name();

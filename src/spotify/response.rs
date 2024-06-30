@@ -2,12 +2,11 @@ use std::convert::TryInto;
 
 use color_eyre::eyre::{Error, Result};
 
-use crate::music_api::{Album, Artist, Playlist, Playlists, Song, Songs, MusicApiType};
-
 use super::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySearchResponse, SpotifySongItemResponse,
     SpotifySongResponse,
 };
+use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
 
 impl TryInto<Songs> for SpotifySearchResponse {
     type Error = Error;

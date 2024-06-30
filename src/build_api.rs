@@ -1,11 +1,13 @@
-use crate::args::{MusicPlatformDst, MusicPlatformSrc, RootArgs};
+use std::path::Path;
+
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
-use std::path::Path;
 use sync_dis_boi::music_api::DynMusicApi;
 use sync_dis_boi::spotify::SpotifyApi;
-use sync_dis_boi::yt_music::YtMusicApi;
 use sync_dis_boi::tidal::TidalApi;
+use sync_dis_boi::yt_music::YtMusicApi;
+
+use crate::args::{MusicPlatformDst, MusicPlatformSrc, RootArgs};
 
 #[async_trait]
 pub trait BuildApi {

@@ -1,34 +1,25 @@
 mod model;
 mod response;
 
-use crate::music_api::MusicApi;
-use crate::music_api::Playlist;
-use crate::music_api::Playlists;
-use crate::music_api::Song;
-use crate::music_api::Songs;
-use crate::music_api::PLAYLIST_DESC;
-use crate::spotify::model::SpotifySearchResponse;
+use std::collections::HashMap;
+use std::time::Duration;
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
 use reqwest::header::HeaderMap;
-use reqwest::Response;
-use reqwest::StatusCode;
+use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
 use serde_json::json;
-use std::collections::HashMap;
-use std::time::Duration;
 use tokio::net::TcpListener;
-use tracing::debug;
-use tracing::info;
-use tracing::warn;
+use tracing::{debug, info, warn};
 
-use self::model::SpotifyPageResponse;
-use self::model::SpotifyPlaylistResponse;
-use self::model::SpotifySnapshotResponse;
-use self::model::SpotifySongItemResponse;
-use self::model::SpotifyToken;
+use self::model::{
+    SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySnapshotResponse, SpotifySongItemResponse,
+    SpotifyToken,
+};
+use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
+use crate::spotify::model::SpotifySearchResponse;
 
 pub struct SpotifyApi {
     client: reqwest::Client,
@@ -263,8 +254,7 @@ impl MusicApi for SpotifyApi {
             "public": public,
             "description": PLAYLIST_DESC,
         });
-        let res: SpotifyPlaylistResponse =
-            self.make_request(path, None, Some(body), 50, 0).await?;
+        let res: SpotifyPlaylistResponse = self.make_request(path, None, Some(body), 50, 0).await?;
         let playlist: Playlist = res.try_into()?;
         Ok(playlist)
     }
@@ -344,10 +334,14 @@ impl MusicApi for SpotifyApi {
         let path = "/search";
         let max_len = 100;
 
-        // TODO: It looks like single quotes have better results compared to double quotes, not sure why
+        // TODO: It looks like single quotes have better results compared to double
+        // quotes, not sure why
         let mut track_query = format!("track:\"{}\"", song.clean_name());
         if track_query.len() > max_len {
-            warn!("song name is bigger than spotify max search: \"{}\", truncating", track_query);
+            warn!(
+                "song name is bigger than spotify max search: \"{}\", truncating",
+                track_query
+            );
             // Not the best solution, but it's worth a try
             track_query = track_query[..max_len].to_string();
         }
@@ -406,9 +400,8 @@ impl MusicApi for SpotifyApi {
 mod tests {
     use std::env;
 
-    use crate::yt_music::YtMusicApi;
-
     use super::*;
+    use crate::yt_music::YtMusicApi;
 
     #[tokio::test]
     async fn test_spotify_search_from_ytmusic() {

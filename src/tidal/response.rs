@@ -1,7 +1,10 @@
-use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
 use color_eyre::eyre::{Error, Result};
 
-use super::model::{TidalPageResponse, TidalPlaylistResponse, TidalSearchResponse, TidalSongItemResponse, TidalSongResponse};
+use super::model::{
+    TidalPageResponse, TidalPlaylistResponse, TidalSearchResponse, TidalSongItemResponse,
+    TidalSongResponse,
+};
+use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
 
 impl TryInto<Playlists> for TidalPageResponse<TidalPlaylistResponse> {
     type Error = Error;
@@ -45,10 +48,14 @@ impl TryInto<Song> for TidalSongResponse {
             id: Some(self.album.id.to_string()),
             name: self.album.title,
         };
-        let artists = self.artists.into_iter().map(|a| Artist {
-            id: Some(a.id.to_string()),
-            name: a.name,
-        }).collect();
+        let artists = self
+            .artists
+            .into_iter()
+            .map(|a| Artist {
+                id: Some(a.id.to_string()),
+                name: a.name,
+            })
+            .collect();
 
         Ok(Song {
             source: MusicApiType::Tidal,
@@ -59,7 +66,6 @@ impl TryInto<Song> for TidalSongResponse {
             artists,
             duration: self.duration,
         })
-            
     }
 }
 

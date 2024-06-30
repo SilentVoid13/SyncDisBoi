@@ -8,8 +8,8 @@ pub struct RootArgs {
     #[command(subcommand)]
     pub src: MusicPlatformSrc,
 
-    /// Enable debug mode to display and generate debug information during synchronization
-    /// This is useful during development
+    /// Enable debug mode to display and generate debug information during
+    /// synchronization This is useful during development
     #[arg(long, default_value = "false")]
     pub debug: bool,
 
@@ -27,9 +27,17 @@ pub struct RootArgs {
 pub enum MusicPlatformSrc {
     YtMusic {
         /// The client ID for the Youtube API application
-        #[arg(long, env = "YTMUSIC_CLIENT_ID", default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com")]
+        #[arg(
+            long,
+            env = "YTMUSIC_CLIENT_ID",
+            default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
+        )]
         client_id: String,
-        #[arg(long, env = "YTMUSIC_CLIENT_SECRET", default_value = "SboVhoG9s0rNafixCSGGKXAT")]
+        #[arg(
+            long,
+            env = "YTMUSIC_CLIENT_SECRET",
+            default_value = "SboVhoG9s0rNafixCSGGKXAT"
+        )]
         /// The client secret for the Youtube API application
         client_secret: String,
         /// Clear the cached ytmusic_oauth.json file
@@ -54,7 +62,11 @@ pub enum MusicPlatformSrc {
         /// The client ID for the Tidal API application
         #[arg(long, env = "TIDAL_CLIENT_ID", default_value = "zU4XHVVkc2tDPo4t")]
         client_id: String,
-        #[arg(long, env = "TIDAL_CLIENT_SECRET", default_value = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4=")]
+        #[arg(
+            long,
+            env = "TIDAL_CLIENT_SECRET",
+            default_value = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4="
+        )]
         /// The client secret for the Tidal API application
         client_secret: String,
         /// Clear the cached tidal_oauth.json file
@@ -63,7 +75,7 @@ pub enum MusicPlatformSrc {
         /// The destination music platform
         #[command(subcommand)]
         dst: MusicPlatformDst,
-    }
+    },
 }
 
 // INFO: Hack to support command chaining with clap
@@ -73,9 +85,17 @@ pub enum MusicPlatformSrc {
 pub enum MusicPlatformDst {
     YtMusic {
         /// The client ID for the Youtube API application
-        #[arg(long, env = "YTMUSIC_CLIENT_ID", default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com")]
+        #[arg(
+            long,
+            env = "YTMUSIC_CLIENT_ID",
+            default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
+        )]
         client_id: String,
-        #[arg(long, env = "YTMUSIC_CLIENT_SECRET", default_value = "SboVhoG9s0rNafixCSGGKXAT")]
+        #[arg(
+            long,
+            env = "YTMUSIC_CLIENT_SECRET",
+            default_value = "SboVhoG9s0rNafixCSGGKXAT"
+        )]
         /// The client secret for the Youtube API application
         client_secret: String,
         /// Clear the cached ytmusic_oauth.json file
@@ -94,13 +114,17 @@ pub enum MusicPlatformDst {
         /// The client ID for the Tidal API application
         #[arg(long, env = "TIDAL_CLIENT_ID", default_value = "zU4XHVVkc2tDPo4t")]
         client_id: String,
-        #[arg(long, env = "TIDAL_CLIENT_SECRET", default_value = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4=")]
+        #[arg(
+            long,
+            env = "TIDAL_CLIENT_SECRET",
+            default_value = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4="
+        )]
         /// The client secret for the Tidal API application
         client_secret: String,
         /// Clear the cached tidal_oauth.json file
         #[arg(long)]
         clear_cache: bool,
-    }
+    },
 }
 
 #[derive(ValueEnum, Clone, Debug)]

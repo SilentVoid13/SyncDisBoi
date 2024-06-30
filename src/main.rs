@@ -5,12 +5,12 @@ use std::path::Path;
 
 use args::RootArgs;
 use build_api::BuildApi;
-use sync_dis_boi::sync::synchronize;
-
 use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
+use sync_dis_boi::sync::synchronize;
 use tracing::{debug, info, Level};
-use tracing_subscriber::{filter::Targets, prelude::*};
+use tracing_subscriber::filter::Targets;
+use tracing_subscriber::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {

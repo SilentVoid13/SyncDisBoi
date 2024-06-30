@@ -1,25 +1,24 @@
 mod model;
 mod response;
 
-use std::{io::Read, path::PathBuf};
+use std::io::Read;
+use std::path::PathBuf;
 
 use async_trait::async_trait;
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::eyre::eyre;
+use color_eyre::Result;
 use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use tracing::info;
 
-use crate::{
-    music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC},
-    tidal::model::{
-        TidalOAuthToken, TidalPlaylistCreateResponse, TidalReqToken, TidalSearchResponse,
-    },
-};
-
 use self::model::{
     TidalDeviceRes, TidalMeResponse, TidalOAuthRefresh, TidalPageResponse, TidalPlaylistResponse,
     TidalSongItemResponse, TidalSongResponse,
+};
+use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
+use crate::tidal::model::{
+    TidalOAuthToken, TidalPlaylistCreateResponse, TidalReqToken, TidalSearchResponse,
 };
 
 pub struct TidalApi {
@@ -200,7 +199,8 @@ impl MusicApi for TidalApi {
         let params = json!({
             "countryCode": "US",
         });
-        let res: TidalPageResponse<TidalPlaylistResponse> = self.paginated_get_request(&url, params).await?;
+        let res: TidalPageResponse<TidalPlaylistResponse> =
+            self.paginated_get_request(&url, params).await?;
         let playlists: Playlists = res.try_into()?;
         Ok(playlists.0)
     }
@@ -210,7 +210,8 @@ impl MusicApi for TidalApi {
         let params = json!({
             "countryCode": "US",
         });
-        let res: TidalPageResponse<TidalSongItemResponse> = self.paginated_get_request(&url, params).await?;
+        let res: TidalPageResponse<TidalSongItemResponse> =
+            self.paginated_get_request(&url, params).await?;
         let songs: Songs = res.try_into()?;
         Ok(songs.0)
     }

@@ -1,10 +1,11 @@
-use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
-use super::{model::YtMusicResponse, YtMusicApi};
-
 use color_eyre::eyre::{eyre, Error, Result};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
-use regex::Regex;
+
+use super::model::YtMusicResponse;
+use super::YtMusicApi;
+use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct SearchSongs(pub Vec<Song>);

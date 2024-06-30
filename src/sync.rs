@@ -1,8 +1,8 @@
-use crate::music_api::{DynMusicApi, MusicApi};
-
 use color_eyre::eyre::Result;
 use serde_json::json;
 use tracing::{debug, info, warn};
+
+use crate::music_api::{DynMusicApi, MusicApi};
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
 const SKIPPED_PLAYLISTS: [&str; 10] = [

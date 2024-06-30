@@ -1,11 +1,10 @@
 pub mod model;
 mod response;
 
-use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
-use crate::yt_music::model::{
-    YtMusicOAuthToken, YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse,
-};
-use crate::yt_music::response::SearchSongs;
+use std::collections::HashMap;
+use std::fmt::Write;
+use std::io::Read;
+use std::path::PathBuf;
 
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
@@ -13,16 +12,17 @@ use lazy_static::lazy_static;
 use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde_json::json;
-use std::collections::HashMap;
-use std::fmt::Write;
-use std::io::Read;
-use std::path::PathBuf;
 use tracing::info;
 
 use self::model::{
     YtMusicContinuationResponse, YtMusicOAuthRefresh, YtMusicOAuthResponse,
     YtMusicPlaylistEditResponse, YtMusicResponse,
 };
+use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
+use crate::yt_music::model::{
+    YtMusicOAuthToken, YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse,
+};
+use crate::yt_music::response::SearchSongs;
 
 lazy_static! {
     static ref CONTEXT: serde_json::Value = json!({

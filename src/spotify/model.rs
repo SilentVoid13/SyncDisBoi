@@ -9,8 +9,7 @@ pub struct SpotifyToken {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct SpotifyEmptyResponse {
-}
+pub struct SpotifyEmptyResponse {}
 
 #[derive(Deserialize, Debug)]
 pub struct SpotifySnapshotResponse {
