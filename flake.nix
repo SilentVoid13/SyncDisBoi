@@ -81,6 +81,12 @@
             craneLib = craneLib'.overrideArgs {
               pname = project_name;
               src = buildSrc;
+              depsBuildBuild =
+                []
+                ++ pkgs.lib.optionals pkgs.stdenv.isDarwin
+                (with pkgs.darwin.apple_sdk.frameworks; [
+                  CoreServices
+                ]);
             };
           in {
             ${project_name} = craneLib.buildPackage {};
