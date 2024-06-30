@@ -58,6 +58,8 @@
             [
               buildPackages.darwin.apple_sdk.frameworks.CoreServices
               darwin.apple_sdk.frameworks.CoreServices
+              buildPackages.darwin.apple_sdk.frameworks.SystemConfiguration
+              darwin.apple_sdk.frameworks.SystemConfiguration
             ];
 
         nativeBuildInputs = pkgs:
@@ -69,6 +71,8 @@
             [
               buildPackages.darwin.apple_sdk.frameworks.CoreServices
               darwin.apple_sdk.frameworks.CoreServices
+              buildPackages.darwin.apple_sdk.frameworks.SystemConfiguration
+              darwin.apple_sdk.frameworks.SystemConfiguration
             ];
 
         buildSrc = flakeboxLib.filterSubPaths {
@@ -87,13 +91,6 @@
             craneLib = craneLib'.overrideArgs {
               pname = project_name;
               src = buildSrc;
-              depsBuildBuild =
-                []
-                ++ pkgs.lib.optionals pkgs.stdenv.isDarwin
-                [
-                  pkgs.darwin.apple_sdk.frameworks.CoreServices
-                  pkgs.buildPackages.darwin.apple_sdk.frameworks.CoreServices
-                ];
             };
           in {
             ${project_name} = craneLib.buildPackage {};
