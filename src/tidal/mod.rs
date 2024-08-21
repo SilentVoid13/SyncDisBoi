@@ -14,7 +14,7 @@ use tracing::info;
 
 use self::model::{
     TidalDeviceRes, TidalMeResponse, TidalOAuthRefresh, TidalPageResponse, TidalPlaylistResponse,
-    TidalSongItemResponse, TidalSongResponse,
+    TidalSongItemResponse
 };
 use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
 use crate::tidal::model::{
@@ -251,8 +251,8 @@ impl MusicApi for TidalApi {
 
     async fn remove_songs_from_playlist(
         &self,
-        playlist: &mut Playlist,
-        songs_ids: &[Song],
+        _playlist: &mut Playlist,
+        _songs_ids: &[Song],
     ) -> Result<()> {
         todo!()
     }
