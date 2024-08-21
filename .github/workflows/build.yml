@@ -43,7 +43,7 @@ jobs:
         target:
           - x86_64-linux-musl
           - aarch64-linux-musl
-          - windows64
+          - mingw64
         include:
           - os: macos-latest
             target: aarch64-darwin
