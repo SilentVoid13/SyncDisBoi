@@ -27,26 +27,31 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v2
       - name: Build ${{ matrix.target }} binary
         run: |
-          nix build -L .#${{matrix.target}}.release.SyncDisBoi
+          nix build -L .#${{matrix.target.derivation}}
           mkdir artifacts/
           cp result/bin/* artifacts
           cd artifacts
-          ls | xargs -I{} mv {} ${{matrix.target}}-{}
+          ls | xargs -I{} mv {} ${{matrix.target.name}}-{}
       - uses: actions/upload-artifact@v4
         with:
-          name: "${{ matrix.target }}-sync_dis_boi"
+          name: "${{ matrix.target.name }}-sync_dis_boi"
           path: "artifacts/*"
     strategy:
       matrix:
         os:
           - ubuntu-latest
         target:
-          - x86_64-linux-musl
-          - aarch64-linux-musl
-          - mingw64
+          - derivation: x86_64-unknown-linux-musl
+            name: linux-x86_64
+          - derivation: aarch64-unknown-linux-musl
+            name: linux-aarch64
+          - derivation: x86_64-pc-windows-gnu
+            name: windows-x86_64
         include:
           - os: macos-latest
-            target: aarch64-darwin
+            target:
+              derivation: ""
+              name: mac-aarch64
   release:
     name: Release
     needs: build
