@@ -379,6 +379,10 @@ impl MusicApi for YtMusicApi {
         }
         Ok(None)
     }
+
+    async fn like_songs(&self, _songs: &[Song]) -> Result<()> {
+        todo!();
+    }
 }
 
 #[cfg(test)]

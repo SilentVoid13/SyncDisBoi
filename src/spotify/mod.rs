@@ -33,6 +33,7 @@ pub struct SpotifyApi {
 enum HttpMethod<'a> {
     Get(&'a [(&'a str, &'a str)]),
     Post(&'a serde_json::Value),
+    Put(&'a serde_json::Value),
     Delete(&'a serde_json::Value),
 }
 
@@ -43,6 +44,7 @@ impl SpotifyApi {
     const SCOPES: &'static [&'static str] = &[
         "user-read-email",
         "user-read-private",
+        "user-library-modify",
         "playlist-read-collaborative",
         "playlist-modify-public",
         "playlist-read-private",
@@ -200,9 +202,10 @@ impl SpotifyApi {
         let mut request = match method {
             HttpMethod::Get(p) => self.client.get(endpoint).query(p),
             HttpMethod::Post(b) => self.client.post(endpoint).json(b),
+            HttpMethod::Put(b) => self.client.put(endpoint).json(b),
             HttpMethod::Delete(b) => self.client.delete(endpoint).json(b),
         };
-        request = request.query(&[("limit", limit), ("offset", offset)]);
+        //request = request.query(&[("limit", limit), ("offset", offset)]);
         let res = request.send().await?;
         if res.status() == StatusCode::TOO_MANY_REQUESTS {
             self.api_rate_wait(&res).await?;
@@ -410,6 +413,20 @@ impl MusicApi for SpotifyApi {
             }
         }
         return Ok(None);
+    }
+
+    async fn like_songs(&self, songs: &[Song]) -> Result<()> {
+        // NOTE: A maximum of 50 items can be specified in one request
+        for songs_chunk in songs.chunks(50) {
+            let ids: Vec<&str> = songs_chunk.iter().map(|s| s.id.as_str()).collect();
+            let body = json!({
+                "ids": ids,
+            });
+            dbg!(&body);
+            self.make_request("/me/tracks", &HttpMethod::Put(&body), 50, 0)
+                .await?;
+        }
+        Ok(())
     }
 }
 

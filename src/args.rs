@@ -13,6 +13,9 @@ pub struct RootArgs {
     #[arg(long, default_value = "false")]
     pub debug: bool,
 
+    /// Like all songs that will be sychronized on the destination platform
+    pub like_all: bool,
+
     /// Proxy to use for all requests in the format http://<ip>:<port>
     #[arg(long)]
     pub proxy: Option<String>,

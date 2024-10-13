@@ -31,6 +31,7 @@ pub struct TidalApi {
 #[derive(Debug)]
 enum HttpMethod<'a> {
     Get(&'a serde_json::Value),
+    Post(&'a serde_json::Value),
     Put(&'a serde_json::Value),
 }
 
@@ -182,6 +183,7 @@ impl TidalApi {
     ) -> Result<Response> {
         let mut request = match method {
             HttpMethod::Get(p) => self.client.get(url).query(p),
+            HttpMethod::Post(b) => self.client.post(url).form(b),
             HttpMethod::Put(b) => self.client.put(url).form(b),
         };
         if let Some((limit, offset)) = lim_off {
@@ -370,5 +372,26 @@ impl MusicApi for TidalApi {
             }
         }
         Ok(None)
+    }
+
+    async fn like_songs(&self, songs: &[Song]) -> Result<()> {
+        let url = format!(
+            "{}/v1/users/{}/favorites/tracks",
+            Self::API_URL,
+            self.user_id
+        );
+        let tracks = songs
+            .iter()
+            .map(|s| s.id.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        let params = json!({
+            "countryCode": self.country_code,
+            "trackIds": tracks,
+            "onArtifactNotFound": "FAIL",
+        });
+        self.make_request(&url, &HttpMethod::Post(&params), None)
+            .await?;
+        Ok(())
     }
 }

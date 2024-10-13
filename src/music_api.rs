@@ -53,6 +53,8 @@ pub trait MusicApi {
         let results = try_join_all(requests).await?;
         Ok(results)
     }
+
+    async fn like_songs(&self, songs: &[Song]) -> Result<()>;
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
