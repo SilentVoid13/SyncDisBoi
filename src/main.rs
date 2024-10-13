@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
         let debug_dir = Path::new("debug");
         if !debug_dir.exists() {
             debug!("creating debug directory");
-            std::fs::create_dir("debug").unwrap();
+            std::fs::create_dir("debug")?;
         }
     }
 

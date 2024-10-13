@@ -18,7 +18,9 @@ use tracing::{debug, info, warn};
 use self::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySnapshotResponse, SpotifySongItemResponse,
 };
-use crate::music_api::{MusicApi, MusicApiType, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
+use crate::music_api::{
+    MusicApi, MusicApiType, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC,
+};
 use crate::spotify::model::SpotifySearchResponse;
 
 pub struct SpotifyApi {
@@ -94,7 +96,11 @@ impl SpotifyApi {
         let me_res: SpotifyUserResponse = res.json().await?;
         let country_code = me_res.country;
 
-        Ok(Self { client, debug, country_code })
+        Ok(Self {
+            client,
+            debug,
+            country_code,
+        })
     }
 
     fn build_authorization_url(client_id: &str) -> Result<String> {
@@ -223,7 +229,7 @@ impl SpotifyApi {
         let res = self.make_request(path, method, limit, offset).await?;
         let obj = if self.debug {
             let text = res.text().await?;
-            std::fs::write("debug/spotify_last_res.json", &text).unwrap();
+            std::fs::write("debug/spotify_last_res.json", &text)?;
             serde_json::from_str(&text)?
         } else {
             res.json().await?

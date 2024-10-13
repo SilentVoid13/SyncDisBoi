@@ -139,7 +139,7 @@ impl TryInto<SearchSongs> for YtMusicResponse {
             let mut album = None;
             let mut artists: Vec<Artist> = vec![];
             let mut duration = 0;
-            let re_duration = Regex::new(r"^(\d+:)*\d+:\d+$").unwrap();
+            let re_duration = Regex::new(r"^(\d+:)*\d+:\d+$")?;
 
             for run in mrlir
                 .get_col_runs(1, true)

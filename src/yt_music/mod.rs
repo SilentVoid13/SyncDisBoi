@@ -17,7 +17,8 @@ use tracing::info;
 
 use self::model::{YtMusicContinuationResponse, YtMusicPlaylistEditResponse, YtMusicResponse};
 use crate::music_api::{
-    MusicApi, MusicApiType, OAuthRefreshToken, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC
+    MusicApi, MusicApiType, OAuthRefreshToken, OAuthToken, Playlist, Playlists, Song, Songs,
+    PLAYLIST_DESC,
 };
 use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse};
 use crate::yt_music::response::SearchSongs;
@@ -144,7 +145,7 @@ impl YtMusicApi {
         );
         webbrowser::open(&auth_url)?;
         info!("please authorize the app in your browser and press enter");
-        std::io::stdin().read_exact(&mut [0]).unwrap();
+        std::io::stdin().read_exact(&mut [0])?;
 
         // 2. request the token
         let mut params = HashMap::new();
@@ -211,7 +212,7 @@ impl YtMusicApi {
         let res = res.error_for_status()?;
         let obj = if self.debug {
             let text = res.text().await?;
-            std::fs::write("debug/yt_music_last_res.json", &text).unwrap();
+            std::fs::write("debug/yt_music_last_res.json", &text)?;
             serde_json::from_str(&text)?
         } else {
             res.json().await?
@@ -232,7 +233,6 @@ impl MusicApi for YtMusicApi {
     fn api_type(&self) -> MusicApiType {
         MusicApiType::YtMusic
     }
-       
 
     fn country_code(&self) -> &str {
         // TODO: it seems impossible to get the country code from YtMusic

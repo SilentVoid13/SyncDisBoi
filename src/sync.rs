@@ -20,12 +20,11 @@ const SKIPPED_PLAYLISTS: [&str; 10] = [
     "High Energy Mix",
 ];
 
-pub async fn synchronize(
-    src_api: DynMusicApi,
-    dst_api: DynMusicApi,
-    debug: bool,
-) -> Result<()> {
-    if src_api.api_type() != MusicApiType::YtMusic && dst_api.api_type() != MusicApiType::YtMusic && src_api.country_code() != dst_api.country_code() {
+pub async fn synchronize(src_api: DynMusicApi, dst_api: DynMusicApi, debug: bool) -> Result<()> {
+    if src_api.api_type() != MusicApiType::YtMusic
+        && dst_api.api_type() != MusicApiType::YtMusic
+        && src_api.country_code() != dst_api.country_code()
+    {
         return Err(eyre!("source and destination music platforms are in different countries: {} vs {}, this can lead to unexpected results", src_api.country_code(), dst_api.country_code()));
     }
 
@@ -120,13 +119,12 @@ pub async fn synchronize(
         if debug {
             stats.as_object_mut().unwrap().insert(
                 src_playlist.name.clone(),
-                serde_json::to_value(conversion_rate).unwrap(),
+                serde_json::to_value(conversion_rate)?,
             );
             std::fs::write(
                 "debug/conversion_rate.json",
                 serde_json::to_string_pretty(&stats)?,
-            )
-            .unwrap();
+            )?;
 
             if !new_songs.as_array().unwrap().is_empty() {
                 all_new_songs
@@ -136,8 +134,7 @@ pub async fn synchronize(
                 std::fs::write(
                     "debug/new_songs.json",
                     serde_json::to_string_pretty(&all_new_songs)?,
-                )
-                .unwrap();
+                )?;
             }
 
             if !missing_songs.as_array().unwrap().is_empty() {
@@ -148,8 +145,7 @@ pub async fn synchronize(
                 std::fs::write(
                     "debug/missing_songs.json",
                     serde_json::to_string_pretty(&all_missing_songs)?,
-                )
-                .unwrap();
+                )?;
             }
 
             if !no_albums_songs.as_array().unwrap().is_empty() {
@@ -160,8 +156,7 @@ pub async fn synchronize(
                 std::fs::write(
                     "debug/song_with_no_albums.json",
                     serde_json::to_string_pretty(&no_albums)?,
-                )
-                .unwrap();
+                )?;
             }
         }
     }

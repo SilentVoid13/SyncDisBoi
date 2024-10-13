@@ -1,4 +1,4 @@
-use color_eyre::eyre::{Error, Result};
+use color_eyre::eyre::{eyre, Error, Result};
 
 use super::model::{
     TidalMediaResponse, TidalPageResponse, TidalPlaylistResponse, TidalSearchResponse,
@@ -106,7 +106,7 @@ impl TryInto<Song> for TidalMediaResponse {
                         name: title,
                     });
                 }
-                _ => unreachable!("unknown tidal included type: {}", inc.typ),
+                _ => return Err(eyre!("unknown tidal included type: {}", inc.typ)),
             }
         }
         assert_eq!(self.data.len(), 1);

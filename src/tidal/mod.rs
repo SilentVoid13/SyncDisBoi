@@ -14,11 +14,10 @@ use serde::de::DeserializeOwned;
 use serde_json::json;
 use tracing::info;
 
-use self::model::{
-    TidalPageResponse, TidalPlaylistResponse, TidalSongItemResponse,
-};
+use self::model::{TidalPageResponse, TidalPlaylistResponse, TidalSongItemResponse};
 use crate::music_api::{
-    MusicApi, MusicApiType, OAuthRefreshToken, OAuthReqToken, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC
+    MusicApi, MusicApiType, OAuthRefreshToken, OAuthReqToken, OAuthToken, Playlist, Playlists,
+    Song, Songs, PLAYLIST_DESC,
 };
 use crate::tidal::model::{TidalPlaylistCreateResponse, TidalSearchResponse};
 
@@ -106,7 +105,7 @@ impl TidalApi {
 
         webbrowser::open(&url)?;
         info!("please authorize the app in your browser and press enter");
-        std::io::stdin().read_exact(&mut [0]).unwrap();
+        std::io::stdin().read_exact(&mut [0])?;
 
         let auth_token = OAuthReqToken {
             client_id: client_id.to_string(),
@@ -203,10 +202,12 @@ impl TidalApi {
     where
         T: DeserializeOwned,
     {
-        let res = self.make_request(url, method, Some((limit, offset))).await?;
+        let res = self
+            .make_request(url, method, Some((limit, offset)))
+            .await?;
         let obj = if self.debug {
             let text = res.text().await?;
-            std::fs::write("debug/tidal_last_res.json", &text).unwrap();
+            std::fs::write("debug/tidal_last_res.json", &text)?;
             serde_json::from_str(&text)?
         } else {
             res.json().await?
@@ -276,18 +277,19 @@ impl MusicApi for TidalApi {
             return Ok(());
         }
 
-        // TODO: accomodate make_request to access response headers + body
-
         let url = format!("{}/v1/playlists/{}", Self::API_URL, playlist.id);
         let params = json!({
             "countryCode": self.country_code,
         });
-        let res = self.client.get(url).query(&params).send().await?;
-        let res = res.error_for_status()?;
+        let res = self
+            .make_request(&url, &HttpMethod::Get(&params), None)
+            .await?;
         let etag = res
             .headers()
             .get("ETag")
             .ok_or(eyre!("No ETag in Tidal Response"))?;
+
+        // TODO: accomodate make_request to access request headers + body
 
         let url = format!("{}/v1/playlists/{}/items", Self::API_URL, playlist.id);
         let params = json!({
