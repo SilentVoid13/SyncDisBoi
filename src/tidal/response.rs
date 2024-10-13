@@ -61,7 +61,7 @@ impl TryInto<Song> for TidalSongResponse {
             source: MusicApiType::Tidal,
             id: self.id.to_string(),
             sid: None,
-            isrc: Some(self.isrc),
+            isrc: Some(self.isrc.to_uppercase()),
             name: self.title,
             album: Some(album),
             artists,

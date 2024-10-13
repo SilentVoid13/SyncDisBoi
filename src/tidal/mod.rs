@@ -249,7 +249,6 @@ impl MusicApi for TidalApi {
     }
 
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>> {
-        dbg!("get_playlist_songs");
         let url = format!("{}/v1/playlists/{}/items", Self::API_URL, id);
         let params = json!({
             "countryCode": "US",
@@ -262,7 +261,6 @@ impl MusicApi for TidalApi {
     }
 
     async fn add_songs_to_playlist(&self, playlist: &mut Playlist, songs: &[Song]) -> Result<()> {
-        dbg!("add_songs_to_playlist");
         if songs.is_empty() {
             return Ok(());
         }
@@ -334,6 +332,9 @@ impl MusicApi for TidalApi {
             if res.data.is_empty() {
                 return Ok(None);
             }
+            dbg!(&res);
+            dbg!(&song);
+            todo!();
             let res_song: Song = res.try_into()?;
             return Ok(Some(res_song));
         }
