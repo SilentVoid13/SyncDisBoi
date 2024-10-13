@@ -130,7 +130,10 @@ impl Song {
 
         // we allow a 1 second difference
         if !(dur1 - 1..=dur1 + 1).contains(&dur2) {
-            println!("Duration: {} vs {} --> {} VS {}", dur1, dur2, self.name, other.name);
+            println!(
+                "Duration: {} vs {} --> {} VS {}",
+                dur1, dur2, self.name, other.name
+            );
             return false;
         }
 

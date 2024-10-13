@@ -1,7 +1,8 @@
 use color_eyre::eyre::{Error, Result};
 
 use super::model::{
-    TidalMediaResponse, TidalPageResponse, TidalPlaylistResponse, TidalSearchResponse, TidalSongItemResponse, TidalSongResponse
+    TidalMediaResponse, TidalPageResponse, TidalPlaylistResponse, TidalSearchResponse,
+    TidalSongItemResponse, TidalSongResponse,
 };
 use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
 
@@ -112,12 +113,24 @@ impl TryInto<Song> for TidalMediaResponse {
         let data = self.data.remove(0);
         let duration = &data.attributes.duration.unwrap();
         let duration = iso8601::duration(duration).unwrap();
-        let iso8601::Duration::YMDHMS { year, month, day, hour, minute, second, millisecond } = duration else {
+        let iso8601::Duration::YMDHMS {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            millisecond,
+        } = duration
+        else {
             unreachable!("invalid iso8601 duration");
         };
         assert!(year == 0 && month == 0 && day == 0);
         // convert to ms
-        let duration = hour as usize * 60 * 60 * 1000 + minute as usize * 60 * 1000 + second as usize * 1000 + millisecond as usize;
+        let duration = hour as usize * 60 * 60 * 1000
+            + minute as usize * 60 * 1000
+            + second as usize * 1000
+            + millisecond as usize;
 
         Ok(Song {
             source: MusicApiType::Tidal,

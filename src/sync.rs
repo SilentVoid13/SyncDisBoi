@@ -89,7 +89,7 @@ pub async fn synchronize(
             };
             if debug {
                 new_songs.as_array_mut().unwrap().push(json!(dst_song));
-            } 
+            }
             dst_songs.push(dst_song);
             success += 1;
         }
@@ -102,9 +102,15 @@ pub async fn synchronize(
         let mut conversion_rate = 1.0;
         if attempts != 0 {
             conversion_rate = success as f64 / attempts as f64;
-            info!("synchronizing playlist \"{}\" [ok], conversion rate: {}", src_playlist.name, conversion_rate);
+            info!(
+                "synchronizing playlist \"{}\" [ok], conversion rate: {}",
+                src_playlist.name, conversion_rate
+            );
         } else {
-            info!("synchronizing playlist \"{}\" [ok], no new songs to add", src_playlist.name);
+            info!(
+                "synchronizing playlist \"{}\" [ok], no new songs to add",
+                src_playlist.name
+            );
         }
 
         if debug {
@@ -112,14 +118,22 @@ pub async fn synchronize(
                 src_playlist.name.clone(),
                 serde_json::to_value(conversion_rate).unwrap(),
             );
-            std::fs::write("debug/conversion_rate.json", serde_json::to_string_pretty(&stats)?).unwrap();
+            std::fs::write(
+                "debug/conversion_rate.json",
+                serde_json::to_string_pretty(&stats)?,
+            )
+            .unwrap();
 
             if !new_songs.as_array().unwrap().is_empty() {
                 all_new_songs
                     .as_object_mut()
                     .unwrap()
                     .insert(src_playlist.name.clone(), new_songs);
-                std::fs::write("debug/new_songs.json", serde_json::to_string_pretty(&all_new_songs)?).unwrap();
+                std::fs::write(
+                    "debug/new_songs.json",
+                    serde_json::to_string_pretty(&all_new_songs)?,
+                )
+                .unwrap();
             }
 
             if !missing_songs.as_array().unwrap().is_empty() {
@@ -127,7 +141,11 @@ pub async fn synchronize(
                     .as_object_mut()
                     .unwrap()
                     .insert(src_playlist.name.clone(), missing_songs);
-                std::fs::write("debug/missing_songs.json", serde_json::to_string_pretty(&all_missing_songs)?).unwrap();
+                std::fs::write(
+                    "debug/missing_songs.json",
+                    serde_json::to_string_pretty(&all_missing_songs)?,
+                )
+                .unwrap();
             }
 
             if !no_albums_songs.as_array().unwrap().is_empty() {
@@ -135,7 +153,11 @@ pub async fn synchronize(
                     .as_object_mut()
                     .unwrap()
                     .insert(src_playlist.name.clone(), no_albums_songs);
-                std::fs::write("debug/song_with_no_albums.json", serde_json::to_string_pretty(&no_albums)?).unwrap();
+                std::fs::write(
+                    "debug/song_with_no_albums.json",
+                    serde_json::to_string_pretty(&no_albums)?,
+                )
+                .unwrap();
             }
         }
     }

@@ -15,14 +15,11 @@ use serde::de::DeserializeOwned;
 use serde_json::json;
 use tracing::info;
 
-use self::model::{
-    YtMusicContinuationResponse,
-    YtMusicPlaylistEditResponse, YtMusicResponse,
+use self::model::{YtMusicContinuationResponse, YtMusicPlaylistEditResponse, YtMusicResponse};
+use crate::music_api::{
+    MusicApi, OAuthRefreshToken, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC,
 };
-use crate::music_api::{MusicApi, OAuthRefreshToken, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
-use crate::yt_music::model::{
-    YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse,
-};
+use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse};
 use crate::yt_music::response::SearchSongs;
 
 lazy_static! {
