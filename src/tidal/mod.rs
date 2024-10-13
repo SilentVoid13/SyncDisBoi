@@ -7,7 +7,9 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
+use model::TidalMediaResponse;
 use reqwest::header::HeaderMap;
+use reqwest::Response;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use tracing::info;
@@ -20,6 +22,7 @@ use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC
 use crate::tidal::model::{
     TidalOAuthToken, TidalPlaylistCreateResponse, TidalReqToken, TidalSearchResponse,
 };
+use crate::yt_music::model::ItemSectionRendererContent;
 
 pub struct TidalApi {
     client: reqwest::Client,
@@ -27,8 +30,17 @@ pub struct TidalApi {
     user_id: usize,
 }
 
+#[derive(Debug)]
+enum HttpMethod<'a> {
+    Get(&'a serde_json::Value),
+    Post(&'a serde_json::Value),
+    Put(&'a serde_json::Value),
+}
+
 impl TidalApi {
     const API_URL: &'static str = "https://api.tidal.com";
+    const API_V2_URL: &'static str = "https://openapi.tidal.com/v2";
+
     const AUTH_URL: &'static str = "https://auth.tidal.com/v1/oauth2/device_authorization";
     const TOKEN_URL: &'static str = "https://auth.tidal.com/v1/oauth2/token";
     const ME_URL: &'static str = "https://login.tidal.com/oauth2/me";
@@ -137,35 +149,63 @@ impl TidalApi {
         Ok(oauth_token)
     }
 
-    async fn paginated_get_request<T>(
+    async fn paginated_request<T>(
         &self,
-        path: &str,
-        mut params: serde_json::Value,
+        url: &str,
+        method: &HttpMethod<'_>,
+        limit: usize,
     ) -> Result<TidalPageResponse<T>>
     where
         T: DeserializeOwned + std::fmt::Debug,
     {
-        const LIMIT: usize = 100;
-        params["limit"] = LIMIT.into();
-
-        let response = self.client.get(path).query(&params).send().await?;
-        let response = response.error_for_status()?;
-        let mut res: TidalPageResponse<T> = response.json().await?;
+        let mut res: TidalPageResponse<T> = self.make_request_json(url, &method, limit, 0).await?;
         if res.items.is_empty() {
             return Ok(res);
         }
 
-        while res.items.len() % LIMIT == 0 {
-            params["offset"] = res.items.len().into();
-            let response = self.client.get(path).query(&params).send().await?;
-            let response = response.error_for_status()?;
-            let res2: TidalPageResponse<T> = response.json().await?;
+        while res.items.len() % limit == 0 {
+            let offset = res.items.len();
+            let res2: TidalPageResponse<T> = self.make_request_json(url, &method, limit, offset).await?;
             if res2.items.is_empty() {
                 break;
             }
             res.items.extend(res2.items);
         }
         Ok(res)
+    }
+
+    async fn make_request(&self, url: &str, method: &HttpMethod<'_>, limit: usize, offset: usize) -> Result<Response> 
+    {
+        let mut request = match method {
+            HttpMethod::Get(p) => {
+                self.client.get(url).query(p)
+            }
+            HttpMethod::Post(b) => {
+                self.client.post(url).json(b)
+            },
+            HttpMethod::Put(b) => {
+                self.client.put(url).form(b)
+            }
+        };
+        request = request.query(&[("limit", limit), ("offset", offset)]);
+        let res = request.send().await?;
+        let res = res.error_for_status()?;
+        Ok(res)
+    }
+
+    async fn make_request_json<T>(&self, url: &str, method: &HttpMethod<'_>, limit: usize, offset: usize) -> Result<T> 
+    where
+        T: DeserializeOwned,
+    {
+        let res = self.make_request(url, method, limit, offset).await?;
+        let obj = if self.debug {
+            let text = res.text().await?;
+            std::fs::write("debug/tidal_last_res.json", &text).unwrap();
+            serde_json::from_str(&text)?
+        } else {
+            res.json().await?
+        };
+        Ok(obj)
     }
 }
 
@@ -182,13 +222,10 @@ impl MusicApi for TidalApi {
             "public": public,
             "folderId": "root"
         });
-
-        let res = self.client.put(url).form(&params).send().await?;
-        let res = res.error_for_status()?;
-        let response: TidalPlaylistCreateResponse = res.json().await?;
+        let res: TidalPlaylistCreateResponse = self.make_request_json(&url, &HttpMethod::Put(&params), 0, 5).await?;
 
         Ok(Playlist {
-            id: response.data.uuid,
+            id: res.data.uuid,
             name: name.to_string(),
             songs: vec![],
         })
@@ -200,32 +237,37 @@ impl MusicApi for TidalApi {
             "countryCode": "US",
         });
         let res: TidalPageResponse<TidalPlaylistResponse> =
-            self.paginated_get_request(&url, params).await?;
+            self.paginated_request(&url, &HttpMethod::Get(&params), 100).await?;
         let playlists: Playlists = res.try_into()?;
         Ok(playlists.0)
     }
 
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>> {
+        dbg!("get_playlist_songs");
         let url = format!("{}/v1/playlists/{}/items", Self::API_URL, id);
         let params = json!({
             "countryCode": "US",
         });
         let res: TidalPageResponse<TidalSongItemResponse> =
-            self.paginated_get_request(&url, params).await?;
+            self.paginated_request(&url, &HttpMethod::Get(&params), 100).await?;
         let songs: Songs = res.try_into()?;
         Ok(songs.0)
     }
 
     async fn add_songs_to_playlist(&self, playlist: &mut Playlist, songs: &[Song]) -> Result<()> {
+        dbg!("add_songs_to_playlist");
         if songs.is_empty() {
             return Ok(());
         }
+
+        // TODO: accomodate make_request to access response headers + body
 
         let url = format!("{}/v1/playlists/{}", Self::API_URL, playlist.id);
         let params = json!({
             "countryCode": "US",
         });
         let res = self.client.get(url).query(&params).send().await?;
+        let res = res.error_for_status()?;
         let etag = res
             .headers()
             .get("ETag")
@@ -258,10 +300,30 @@ impl MusicApi for TidalApi {
     }
 
     async fn delete_playlist(&self, playlist: Playlist) -> Result<()> {
-        todo!()
+        let url = format!("{}/v2/my-collection/playlists/folders/remove", Self::API_URL);
+        let params = json!({
+            "trns": format!("trn:playlist:{}", playlist.id),
+        });
+        let res = self.make_request(&url, &HttpMethod::Put(&params), 0, 5).await?;
+        Ok(())
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
+        if let Some(isrc) = &song.isrc {
+            let url = format!("{}/tracks", Self::API_V2_URL);
+            let params = json!({
+                "countryCode": "US",
+                "include": "albums,artists",
+                "filter[isrc]": isrc.to_uppercase(),
+            });
+            let res: TidalMediaResponse = self.make_request_json(&url, &HttpMethod::Get(&params), 0, 3).await?;
+            if res.data.is_empty() {
+                return Ok(None);
+            }
+            let res_song: Song = res.try_into()?;
+            return Ok(Some(res_song));
+        }
+
         let url = format!("{}/v1/search", Self::API_URL);
         let mut queries = song.build_queries();
 
@@ -270,10 +332,8 @@ impl MusicApi for TidalApi {
                 "countryCode": "US",
                 "query": query,
                 "type": "TRACKS",
-                "limit": 5,
             });
-            let res = self.client.get(&url).query(&params).send().await?;
-            let res: TidalSearchResponse = res.json().await?;
+            let res: TidalSearchResponse = self.make_request_json(&url, &HttpMethod::Get(&params), 0, 3).await?;
             let res_songs: Songs = res.try_into()?;
             // iterate over top 3 results
             for res_song in res_songs.0.into_iter().take(3) {

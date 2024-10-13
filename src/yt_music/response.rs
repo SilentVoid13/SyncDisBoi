@@ -100,10 +100,11 @@ impl TryInto<Songs> for YtMusicResponse {
                 source: MusicApiType::YtMusic,
                 id,
                 sid: Some(set_id),
+                isrc: None,
                 name,
                 artists,
                 album,
-                duration,
+                duration_ms: duration,
             };
 
             songs_vec.push(song);
@@ -183,10 +184,11 @@ impl TryInto<SearchSongs> for YtMusicResponse {
                 source: MusicApiType::YtMusic,
                 id,
                 sid: None,
+                isrc: None,
                 name,
                 artists,
                 album,
-                duration: 0,
+                duration_ms: 0,
             };
 
             songs_vec.push(song);

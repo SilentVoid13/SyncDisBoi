@@ -74,6 +74,7 @@
       in rec {
         defaultPackage = naerskBuildPackage {
           src = ./.;
+          #doCheck = true;
           buildInputs =
             (fnBuildInputs pkgs)
             ++ (with pkgs;
@@ -88,6 +89,7 @@
 
         packages.x86_64-unknown-linux-musl = naerskBuildPackageT "x86_64-unknown-linux-musl" {
           src = ./.;
+          #doCheck = true;
           nativeBuildInputs = with pkgs; [pkgsStatic.stdenv.cc];
           buildInputs = fnBuildInputs pkgs.pkgsCross.musl64.pkgsStatic;
         };
@@ -96,6 +98,7 @@
           naerskBuildPackageT "aarch64-unknown-linux-musl" {
             src = ./.;
             strictDeps = true;
+            #doCheck = true;
             depsBuildBuild = [
               stdenv.cc
             ];
@@ -107,6 +110,7 @@
         packages.x86_64-pc-windows-gnu = naerskBuildPackageT "x86_64-pc-windows-gnu" {
           src = ./.;
           strictDeps = true;
+          #doCheck = true;
           depsBuildBuild = with pkgs; [
             pkgsCross.mingwW64.stdenv.cc
             pkgsCross.mingwW64.windows.pthreads

@@ -213,7 +213,7 @@ impl YtMusicApi {
         let res = res.error_for_status()?;
         let obj = if self.debug {
             let text = res.text().await?;
-            std::fs::write("debug/yt_music_last_req.json", &text).unwrap();
+            std::fs::write("debug/yt_music_last_res.json", &text).unwrap();
             serde_json::from_str(&text)?
         } else {
             res.json().await?
@@ -268,6 +268,16 @@ impl MusicApi for YtMusicApi {
         let body = json!({ "browseId": browse_id });
         let response = self.paginated_request("browse", &body).await?;
         let songs: Songs = response.try_into()?;
+
+        /*
+        let body = json!({
+            "playbackContext": {"contentPlaybackContext": {"signatureTimestamp": "20008"}},
+            "video_id": "qV4rU7fzyx8",
+        });
+        let res: () = self.make_request("player", &body, None).await?;
+        todo!();
+        */
+
         Ok(songs.0)
     }
 

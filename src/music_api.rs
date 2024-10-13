@@ -76,10 +76,11 @@ pub struct Song {
     pub source: MusicApiType,
     pub id: String,
     pub sid: Option<String>,
+    pub isrc: Option<String>,
     pub name: String,
     pub album: Option<Album>,
     pub artists: Vec<Artist>,
-    pub duration: usize,
+    pub duration_ms: usize,
 }
 
 impl Song {
@@ -96,6 +97,7 @@ impl Song {
     }
 
     pub fn is_single(&self) -> bool {
+        // TODO: improve this, leverage metadata from APIs when it exists
         if let Some(album) = &self.album {
             album.name == self.name
         } else {
@@ -104,6 +106,10 @@ impl Song {
     }
 
     pub fn compare(&self, other: &Self) -> bool {
+        if self.isrc.is_some() && other.isrc.is_some() {
+            return self.isrc == other.isrc;
+        }
+
         // Check song name resemblance
         let name1 = self.clean_name();
         let name2 = other.clean_name();
@@ -117,17 +123,16 @@ impl Song {
         // but not the metadata
 
         // Check song duration resemblance
-        // INFO: Can't do that, since YtMusic duration is garbage, it's incorrect on
-        // certain songs
-        //let dur1 = self.duration / 1000;
-        //let dur2 = other.duration / 1000;
-        //if !(dur1 - 1..dur1 + 1).contains(&dur2) {
-        //    println!(
-        //        "Duration: {}/{} --> {} VS {}",
-        //        self.duration, other.duration, self.name, other.name
-        //    );
-        //    return false;
-        //}
+        // NOTE: YtMusic duration is sometimes garbage, it's incorrect on certain songs
+        // it's still better to use it for accuracy
+        let dur1 = self.duration_ms / 1000;
+        let dur2 = other.duration_ms / 1000;
+
+        // we allow a 1 second difference
+        if !(dur1 - 1..=dur1 + 1).contains(&dur2) {
+            println!("Duration: {} vs {} --> {} VS {}", dur1, dur2, self.name, other.name);
+            return false;
+        }
 
         if let (Some(album1), Some(album2)) = (&self.album, &other.album) {
             // INFO: Sometimes Youtube Music maps the album song to the Youtube Video

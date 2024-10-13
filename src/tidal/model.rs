@@ -36,21 +36,14 @@ pub struct TidalOAuthRefresh {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct TidalPlaylistCreateResponse {
-    pub trn: String,
-    pub data: TidalDataResponse,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct TidalDataResponse {
-    pub uuid: String,
-}
-
-#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TidalMeResponse {
     pub user_id: usize,
 }
+
+////////////
+// V1 API //
+////////////
 
 #[derive(Deserialize, Debug)]
 pub struct TidalPageResponse<T> {
@@ -75,6 +68,7 @@ pub struct TidalSongItemResponse {
 pub struct TidalSongResponse {
     pub id: usize,
     pub title: String,
+    pub isrc: String,
     pub duration: usize,
     pub artists: Vec<TidalArtistResponse>,
     pub album: TidalAlbumResponse,
@@ -97,4 +91,43 @@ pub struct TidalArtistResponse {
 #[derive(Deserialize, Debug)]
 pub struct TidalSearchResponse {
     pub tracks: TidalPageResponse<TidalSongResponse>,
+}
+
+////////////
+// V2 API //
+////////////
+
+#[derive(Deserialize, Debug)]
+pub struct TidalPlaylistCreateResponse {
+    pub trn: String,
+    pub data: TidalPlaylistDataResponse,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TidalPlaylistDataResponse {
+    pub uuid: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TidalMediaResponse {
+    pub data: Vec<TidalMediaData>,
+    pub included: Option<Vec<TidalMediaData>>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TidalMediaData {
+    pub id: String,
+    pub attributes: TidalMediaAttributes,
+    #[serde(rename = "type")]
+    pub typ: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TidalMediaAttributes {
+    pub title: Option<String>,
+    pub isrc: Option<String>,
+    pub name: Option<String>,
+    pub barcode_id: Option<String>,
+    pub duration: Option<String>,
 }

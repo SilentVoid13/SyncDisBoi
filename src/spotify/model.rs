@@ -51,6 +51,7 @@ pub struct SpotifySongResponse {
     pub duration_ms: usize,
     pub artists: Vec<SpotifyArtistResponse>,
     pub album: SpotifyAlbumResponse,
+    pub external_ids: SpotifyExternalIdsResponse,
 }
 
 #[derive(Deserialize, Debug)]
@@ -63,4 +64,10 @@ pub struct SpotifyArtistResponse {
 pub struct SpotifyAlbumResponse {
     pub id: String,
     pub name: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SpotifyExternalIdsResponse {
+    pub isrc: String,
+    pub upc: Option<String>,
 }

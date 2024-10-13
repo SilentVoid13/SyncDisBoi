@@ -85,11 +85,12 @@ impl TryInto<Song> for SpotifySongResponse {
         Ok(Song {
             source: MusicApiType::Spotify,
             id: self.id,
-            name: self.name,
             sid: None,
+            isrc: Some(self.external_ids.isrc),
+            name: self.name,
             album: Some(album),
             artists,
-            duration: self.duration_ms,
+            duration_ms: self.duration_ms,
         })
     }
 }

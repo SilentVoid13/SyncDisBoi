@@ -26,9 +26,9 @@ Notes:
 
 ```bash
 # convert your playlists from Youtube Music to Spotify
-cargo run --release -- yt-music spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
+./sync_dis_boi yt-music spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
 # convert your playlists from Tidal to Youtube Music
-cargo run --release -- tidal yt-music
+./sync_dis_boi tidal yt-music
 ```
 
 To use SyncDisBoi, you need to set up account access for the API of the corresponding music platform.
@@ -67,6 +67,14 @@ The OAuth token will be cached in `~/.config/SyncDisBoi/tidal_oauth.json` (on Li
 Notes:
 - By default, SyncDisBoi uses Tidal's "Android Auto" application credentials to request OAuth access.
 - However, you can also create your own Tidal application and then use it in SyncDisBoi by providing its client id and client secret.
+
+### Debug mode
+
+You can enable the debug mode with `--debug` to generate a certain number of JSON files in a `debug/` folder:
+- `conversion_rate.json`: ratio of successfully sychronized songs
+- `missing_songs.json`: list of all non-synchronized songs
+- `new_songs.json`: list of all synchronized songs
+- `songs_with_no_albums.json`: list of songs skipped because they were missing album metadata
 
 ## Contributing
 

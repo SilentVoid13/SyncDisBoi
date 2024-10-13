@@ -29,7 +29,8 @@ pub async fn synchronize(
     let src_playlists = src_api.get_playlists_full().await?;
     let mut dst_playlists = dst_api.get_playlists_full().await?;
 
-    let mut missing_output = json!({});
+    let mut all_missing_songs = json!({});
+    let mut all_new_songs = json!({});
     let mut no_albums = json!({});
     let mut stats = json!({});
 
@@ -50,10 +51,11 @@ pub async fn synchronize(
         };
 
         let mut missing_songs = json!([]);
+        let mut new_songs = json!([]);
         let mut no_albums_songs = json!([]);
         let mut dst_songs = vec![];
         let mut success = 0;
-        let mut total = 0;
+        let mut attempts = 0;
 
         info!("synchronizing playlist \"{}\" ...", src_playlist.name);
         for src_song in src_playlist.songs.iter() {
@@ -75,7 +77,7 @@ pub async fn synchronize(
                 continue;
             }
 
-            total += 1;
+            attempts += 1;
 
             let dst_song = dst_api.search_song(src_song).await?;
             let Some(dst_song) = dst_song else {
@@ -85,6 +87,9 @@ pub async fn synchronize(
                 }
                 continue;
             };
+            if debug {
+                new_songs.as_array_mut().unwrap().push(json!(dst_song));
+            } 
             dst_songs.push(dst_song);
             success += 1;
         }
@@ -94,34 +99,43 @@ pub async fn synchronize(
                 .await?;
         }
 
-        if total == 0 {
-            total = 1;
+        let mut conversion_rate = 1.0;
+        if attempts != 0 {
+            conversion_rate = success as f64 / attempts as f64;
+            info!("synchronizing playlist \"{}\" [ok], conversion rate: {}", src_playlist.name, conversion_rate);
+        } else {
+            info!("synchronizing playlist \"{}\" [ok], no new songs to add", src_playlist.name);
         }
-        let conversion_rate = success as f64 / total as f64;
-        info!(
-            "playlist synchronization [ok], conversion rate: {}",
-            conversion_rate
-        );
 
         if debug {
             stats.as_object_mut().unwrap().insert(
                 src_playlist.name.clone(),
                 serde_json::to_value(conversion_rate).unwrap(),
             );
-            std::fs::write("debug/stats.json", stats.to_string()).unwrap();
+            std::fs::write("debug/conversion_rate.json", serde_json::to_string_pretty(&stats)?).unwrap();
+
+            if !new_songs.as_array().unwrap().is_empty() {
+                all_new_songs
+                    .as_object_mut()
+                    .unwrap()
+                    .insert(src_playlist.name.clone(), new_songs);
+                std::fs::write("debug/new_songs.json", serde_json::to_string_pretty(&all_new_songs)?).unwrap();
+            }
 
             if !missing_songs.as_array().unwrap().is_empty() {
-                missing_output
+                all_missing_songs
                     .as_object_mut()
                     .unwrap()
                     .insert(src_playlist.name.clone(), missing_songs);
+                std::fs::write("debug/missing_songs.json", serde_json::to_string_pretty(&all_missing_songs)?).unwrap();
+            }
+
+            if !no_albums_songs.as_array().unwrap().is_empty() {
                 no_albums
                     .as_object_mut()
                     .unwrap()
                     .insert(src_playlist.name.clone(), no_albums_songs);
-
-                std::fs::write("debug/missing_songs.json", missing_output.to_string()).unwrap();
-                std::fs::write("debug/song_with_no_albums.json", no_albums.to_string()).unwrap();
+                std::fs::write("debug/song_with_no_albums.json", serde_json::to_string_pretty(&no_albums)?).unwrap();
             }
         }
     }

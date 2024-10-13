@@ -26,6 +26,13 @@ pub struct SpotifyApi {
     debug: bool,
 }
 
+#[derive(Debug)]
+enum HttpMethod<'a> {
+    Get(&'a [(&'a str, &'a str)]),
+    Post(&'a serde_json::Value),
+    Delete(&'a serde_json::Value),
+}
+
 impl SpotifyApi {
     const BASE_API: &'static str = "https://api.spotify.com/v1";
     const REDIRECT_URI_HOST: &'static str = "localhost:8888";
@@ -131,7 +138,7 @@ impl SpotifyApi {
     async fn paginated_request<T>(
         &self,
         path: &str,
-        get_params: Option<&[(&str, &str)]>,
+        method: HttpMethod<'_>,
         limit: u32,
     ) -> Result<SpotifyPageResponse<T>>
     where
@@ -139,14 +146,14 @@ impl SpotifyApi {
     {
         let mut offset = 0;
         let mut response: SpotifyPageResponse<T> = self
-            .make_request(path, get_params, None, limit, offset)
+            .make_request_json(path, &method, limit, offset)
             .await?;
         let mut total = response.total;
 
         while offset < total {
             offset += limit;
             let mut response2: SpotifyPageResponse<T> = self
-                .make_request(path, get_params, None, limit, offset)
+                .make_request_json(path, &method, limit, offset)
                 .await?;
             total = response2.total;
             response.merge(&mut response2);
@@ -170,70 +177,62 @@ impl SpotifyApi {
     }
 
     #[async_recursion]
-    async fn make_request<T>(
+    async fn make_request(
         &self,
         path: &str,
-        get_params: Option<&'async_recursion [(&'async_recursion str, &'async_recursion str)]>,
-        body: Option<serde_json::Value>,
+        method: &HttpMethod<'_>,
         limit: u32,
         offset: u32,
-    ) -> Result<T>
-    where
-        T: DeserializeOwned,
+    ) -> Result<Response>
     {
         let endpoint = self.build_endpoint(path);
-        let mut request = match body.as_ref() {
-            Some(b) => self.client.post(endpoint).json(b),
-            None => self.client.get(endpoint),
+
+        let mut request = match method {
+            HttpMethod::Get(p) => {
+                self.client.get(endpoint).query(p)
+            }
+            HttpMethod::Post(b) => {
+                self.client.post(endpoint).json(b)
+            },
+            HttpMethod::Delete(b) => {
+                self.client.delete(endpoint).json(b)
+            }
         };
         request = request.query(&[("limit", limit), ("offset", offset)]);
-        if let Some(p) = get_params {
-            request = request.query(p);
-        }
         let res = request.send().await?;
         if res.status() == StatusCode::TOO_MANY_REQUESTS {
             self.api_rate_wait(&res).await?;
             // Retry request
             return self
-                .make_request(path, get_params, body, limit, offset)
+                .make_request(path, method, limit, offset)
                 .await;
         }
         let res = res.error_for_status()?;
         if res.status() != StatusCode::OK && res.status() != StatusCode::CREATED {
             return Err(eyre!("Invalid response: {}", res.text().await?));
         }
+        Ok(res)
+    }
+
+    async fn make_request_json<T>(
+        &self,
+        path: &str,
+        method: &HttpMethod<'_>,
+        limit: u32,
+        offset: u32,
+    ) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        let res = self.make_request(path, method, limit, offset).await?;
         let obj = if self.debug {
             let text = res.text().await?;
-            std::fs::write("debug/spotify_last_req.json", &text).unwrap();
+            std::fs::write("debug/spotify_last_res.json", &text).unwrap();
             serde_json::from_str(&text)?
         } else {
             res.json().await?
         };
         Ok(obj)
-    }
-
-    #[async_recursion]
-    async fn delete_request<T>(&self, path: &str, body: serde_json::Value) -> Result<()>
-    where
-        T: DeserializeOwned,
-    {
-        let endpoint = self.build_endpoint(path);
-        let res = self.client.delete(endpoint).json(&body).send().await?;
-        if let StatusCode::TOO_MANY_REQUESTS = res.status() {
-            self.api_rate_wait(&res).await?;
-            // Retry request
-            return self.delete_request::<T>(path, body).await;
-        }
-        let res = res.error_for_status()?;
-        if res.status() != StatusCode::OK && res.status() != StatusCode::CREATED {
-            return Err(eyre!("Invalid response: {}", res.text().await?));
-        }
-        let text = res.text().await?;
-        if text.is_empty() {
-            return Ok(());
-        }
-        let _: T = serde_json::from_str(&text)?;
-        Ok(())
     }
 }
 
@@ -254,7 +253,7 @@ impl MusicApi for SpotifyApi {
             "public": public,
             "description": PLAYLIST_DESC,
         });
-        let res: SpotifyPlaylistResponse = self.make_request(path, None, Some(body), 50, 0).await?;
+        let res: SpotifyPlaylistResponse = self.make_request_json(path, &HttpMethod::Post(&body), 50, 0).await?;
         let playlist: Playlist = res.try_into()?;
         Ok(playlist)
     }
@@ -262,7 +261,7 @@ impl MusicApi for SpotifyApi {
     async fn get_playlists_info(&self) -> Result<Vec<Playlist>> {
         let path = "/me/playlists";
         let res: SpotifyPageResponse<SpotifyPlaylistResponse> =
-            self.paginated_request(path, None, 50).await?;
+            self.paginated_request(path, HttpMethod::Get(&[]), 50).await?;
         let playlists: Playlists = res.try_into()?;
         Ok(playlists.0)
     }
@@ -270,7 +269,7 @@ impl MusicApi for SpotifyApi {
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>> {
         let path = format!("/playlists/{}/tracks", id);
         let res: SpotifyPageResponse<SpotifySongItemResponse> =
-            self.paginated_request(&path, None, 50).await?;
+            self.paginated_request(&path, HttpMethod::Get(&[]), 50).await?;
         let songs: Songs = res.try_into()?;
         Ok(songs.0)
     }
@@ -291,7 +290,7 @@ impl MusicApi for SpotifyApi {
                 "uris": u,
             });
             let _: SpotifySnapshotResponse =
-                self.make_request(&path, None, Some(body), 50, 0).await?;
+                self.make_request_json(&path, &HttpMethod::Post(&body), 50, 0).await?;
         }
         Ok(())
     }
@@ -316,7 +315,7 @@ impl MusicApi for SpotifyApi {
         let body = json!({
             "tracks": uris,
         });
-        self.delete_request::<SpotifySnapshotResponse>(&path, body)
+        self.make_request_json::<SpotifySnapshotResponse>(&path, &HttpMethod::Delete(&body), 50, 0)
             .await?;
         Ok(())
     }
@@ -326,63 +325,64 @@ impl MusicApi for SpotifyApi {
         let body = json!({
             "playlist_id": playlist.id,
         });
-        self.delete_request::<()>(&path, body).await?;
+        self.make_request(&path, &HttpMethod::Delete(&body), 50, 0).await?;
         Ok(())
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
         let path = "/search";
         let max_len = 100;
-
-        // TODO: It looks like single quotes have better results compared to double
-        // quotes, not sure why
-        let mut track_query = format!("track:\"{}\"", song.clean_name());
-        if track_query.len() > max_len {
-            warn!(
-                "song name is bigger than spotify max search: \"{}\", truncating",
-                track_query
-            );
-            // Not the best solution, but it's worth a try
-            track_query = track_query[..max_len].to_string();
-        }
-
-        let artist_queries: Vec<String> = song
-            .artists
-            .iter()
-            .map(|a| format!("artist:\"{}\"", a.clean_name()))
-            .collect();
-
-        let mut album_query = None;
-        if let Some(album) = &song.album {
-            album_query = Some(format!("album:\"{}\"", album.clean_name()));
-        }
-
         let mut queries = vec![];
 
-        // Query: Track + Album
-        if let Some(album_query) = album_query.as_ref() {
-            let tr_al_query = format!("{} {}", track_query, album_query);
-            push_query(&mut queries, tr_al_query, max_len);
-        }
-        // Query: Track + Artist
-        for artist_query in artist_queries.iter().rev() {
-            // INFO: spotify doesn't support multiple artists in search
-            // we have to create one query per artist
-            let tr_ar_query = format!("{} {}", track_query, artist_query);
-            push_query(&mut queries, tr_ar_query, max_len);
-        }
-        // Query: Track + Artist + Album
-        if let Some(album_query) = album_query.as_ref() {
+        if let Some(isrc) = &song.isrc {
+            queries.push(format!("isrc:{}", isrc));
+        } else {
+            let mut track_query = format!("track:\"{}\"", song.clean_name());
+            if track_query.len() > max_len {
+                warn!(
+                    "song name is bigger than spotify max search: \"{}\", truncating",
+                    track_query
+                );
+                // Not the best solution, but it's worth a try
+                track_query = track_query[..max_len].to_string();
+            }
+
+            let artist_queries: Vec<String> = song
+                .artists
+                .iter()
+                .map(|a| format!("artist:\"{}\"", a.clean_name()))
+                .collect();
+
+            let mut album_query = None;
+            if let Some(album) = &song.album {
+                album_query = Some(format!("album:\"{}\"", album.clean_name()));
+            }
+
+            // Query: Track + Album
+            if let Some(album_query) = album_query.as_ref() {
+                let tr_al_query = format!("{} {}", track_query, album_query);
+                push_query(&mut queries, tr_al_query, max_len);
+            }
+            // Query: Track + Artist
             for artist_query in artist_queries.iter().rev() {
-                let tr_ar_al_query = format!("{} {} {}", track_query, artist_query, album_query);
-                push_query(&mut queries, tr_ar_al_query, max_len);
+                // INFO: spotify doesn't support multiple artists in search
+                // we have to create one query per artist
+                let tr_ar_query = format!("{} {}", track_query, artist_query);
+                push_query(&mut queries, tr_ar_query, max_len);
+            }
+            // Query: Track + Artist + Album
+            if let Some(album_query) = album_query.as_ref() {
+                for artist_query in artist_queries.iter().rev() {
+                    let tr_ar_al_query = format!("{} {} {}", track_query, artist_query, album_query);
+                    push_query(&mut queries, tr_ar_al_query, max_len);
+                }
             }
         }
 
         while let Some(query) = queries.pop() {
             let get_params = [("type", "track"), ("q", &query)];
             let res: SpotifySearchResponse = self
-                .make_request(path, Some(&get_params), None, 50, 0)
+                .make_request_json(path, &HttpMethod::Get(&get_params), 3, 0)
                 .await?;
             let res_songs: Songs = res.try_into()?;
             // iterate over top 3 results
