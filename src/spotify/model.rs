@@ -5,6 +5,14 @@ pub struct SpotifyEmptyResponse {}
 
 #[derive(Deserialize, Debug)]
 #[allow(dead_code)]
+pub struct SpotifyUserResponse {
+    pub country: String,
+    pub display_name: String,
+    pub email: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 pub struct SpotifySnapshotResponse {
     pub snapshot_id: String,
 }

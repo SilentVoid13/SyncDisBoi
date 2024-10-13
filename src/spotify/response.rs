@@ -82,11 +82,16 @@ impl TryInto<Song> for SpotifySongResponse {
             id: Some(self.album.id),
             name: self.album.name,
         };
+
+        let isrc = self.external_ids.isrc.to_uppercase();
+        // the metadata is sometimes inconsistent
+        let isrc = isrc.replace("-", "");
+
         Ok(Song {
             source: MusicApiType::Spotify,
             id: self.id,
             sid: None,
-            isrc: Some(self.external_ids.isrc.to_uppercase()),
+            isrc: Some(isrc),
             name: self.name,
             album: Some(album),
             artists,

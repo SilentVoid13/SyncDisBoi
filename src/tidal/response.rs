@@ -109,7 +109,7 @@ impl TryInto<Song> for TidalMediaResponse {
                 _ => unreachable!("unknown tidal included type: {}", inc.typ),
             }
         }
-        assert!(self.data.len() == 1);
+        assert_eq!(self.data.len(), 1);
         let data = self.data.remove(0);
         let duration = &data.attributes.duration.unwrap();
         let duration = iso8601::duration(duration).unwrap();

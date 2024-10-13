@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
-use model::{TidalMediaResponse, TidalOAuthDeviceRes};
+use model::{TidalMediaResponse, TidalMediaResponseSingle, TidalOAuthDeviceRes};
 use reqwest::header::HeaderMap;
 use reqwest::Response;
 use serde::de::DeserializeOwned;
@@ -15,18 +15,18 @@ use serde_json::json;
 use tracing::info;
 
 use self::model::{
-    TidalMeResponse, TidalPageResponse, TidalPlaylistResponse, TidalSongItemResponse,
+    TidalPageResponse, TidalPlaylistResponse, TidalSongItemResponse,
 };
 use crate::music_api::{
-    MusicApi, OAuthRefreshToken, OAuthReqToken, OAuthToken, Playlist, Playlists, Song, Songs,
-    PLAYLIST_DESC,
+    MusicApi, MusicApiType, OAuthRefreshToken, OAuthReqToken, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC
 };
 use crate::tidal::model::{TidalPlaylistCreateResponse, TidalSearchResponse};
 
 pub struct TidalApi {
     client: reqwest::Client,
     debug: bool,
-    user_id: usize,
+    user_id: String,
+    country_code: String,
 }
 
 #[derive(Debug)]
@@ -41,7 +41,6 @@ impl TidalApi {
 
     const AUTH_URL: &'static str = "https://auth.tidal.com/v1/oauth2/device_authorization";
     const TOKEN_URL: &'static str = "https://auth.tidal.com/v1/oauth2/token";
-    const ME_URL: &'static str = "https://login.tidal.com/oauth2/me";
     const SCOPE: &'static str = "r_usr w_usr w_sub";
 
     pub async fn new(
@@ -80,14 +79,17 @@ impl TidalApi {
         }
         let client = client.build()?;
 
-        let res = client.get(Self::ME_URL).send().await?;
+        let url = format!("{}/users/me", Self::API_V2_URL);
+        let res = client.get(&url).send().await?;
         let res = res.error_for_status()?;
-        let me_res: TidalMeResponse = res.json().await?;
+        let me_res: TidalMediaResponseSingle = res.json().await?;
+        let country_code = me_res.data.attributes.country.unwrap();
 
         Ok(Self {
             client,
             debug,
-            user_id: me_res.user_id,
+            user_id: me_res.data.id,
+            country_code,
         })
     }
 
@@ -177,14 +179,15 @@ impl TidalApi {
         &self,
         url: &str,
         method: &HttpMethod<'_>,
-        limit: usize,
-        offset: usize,
+        lim_off: Option<(usize, usize)>,
     ) -> Result<Response> {
         let mut request = match method {
             HttpMethod::Get(p) => self.client.get(url).query(p),
             HttpMethod::Put(b) => self.client.put(url).form(b),
         };
-        request = request.query(&[("limit", limit), ("offset", offset)]);
+        if let Some((limit, offset)) = lim_off {
+            request = request.query(&[("limit", limit), ("offset", offset)]);
+        }
         let res = request.send().await?;
         let res = res.error_for_status()?;
         Ok(res)
@@ -200,7 +203,7 @@ impl TidalApi {
     where
         T: DeserializeOwned,
     {
-        let res = self.make_request(url, method, limit, offset).await?;
+        let res = self.make_request(url, method, Some((limit, offset))).await?;
         let obj = if self.debug {
             let text = res.text().await?;
             std::fs::write("debug/tidal_last_res.json", &text).unwrap();
@@ -214,6 +217,14 @@ impl TidalApi {
 
 #[async_trait]
 impl MusicApi for TidalApi {
+    fn api_type(&self) -> MusicApiType {
+        MusicApiType::Tidal
+    }
+
+    fn country_code(&self) -> &str {
+        &self.country_code
+    }
+
     async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist> {
         let url = format!(
             "{}/v2/my-collection/playlists/folders/create-playlist",
@@ -239,7 +250,7 @@ impl MusicApi for TidalApi {
     async fn get_playlists_info(&self) -> Result<Vec<Playlist>> {
         let url = format!("{}/v1/users/{}/playlists", Self::API_URL, self.user_id);
         let params = json!({
-            "countryCode": "US",
+            "countryCode": self.country_code,
         });
         let res: TidalPageResponse<TidalPlaylistResponse> = self
             .paginated_request(&url, &HttpMethod::Get(&params), 100)
@@ -251,7 +262,7 @@ impl MusicApi for TidalApi {
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>> {
         let url = format!("{}/v1/playlists/{}/items", Self::API_URL, id);
         let params = json!({
-            "countryCode": "US",
+            "countryCode": self.country_code,
         });
         let res: TidalPageResponse<TidalSongItemResponse> = self
             .paginated_request(&url, &HttpMethod::Get(&params), 100)
@@ -269,7 +280,7 @@ impl MusicApi for TidalApi {
 
         let url = format!("{}/v1/playlists/{}", Self::API_URL, playlist.id);
         let params = json!({
-            "countryCode": "US",
+            "countryCode": self.country_code,
         });
         let res = self.client.get(url).query(&params).send().await?;
         let res = res.error_for_status()?;
@@ -313,7 +324,7 @@ impl MusicApi for TidalApi {
             "trns": format!("trn:playlist:{}", playlist.id),
         });
         let _res = self
-            .make_request(&url, &HttpMethod::Put(&params), 0, 5)
+            .make_request(&url, &HttpMethod::Put(&params), None)
             .await?;
         Ok(())
     }
@@ -322,7 +333,7 @@ impl MusicApi for TidalApi {
         if let Some(isrc) = &song.isrc {
             let url = format!("{}/tracks", Self::API_V2_URL);
             let params = json!({
-                "countryCode": "US",
+                "countryCode": self.country_code,
                 "include": "albums,artists",
                 "filter[isrc]": isrc.to_uppercase(),
             });
@@ -332,9 +343,6 @@ impl MusicApi for TidalApi {
             if res.data.is_empty() {
                 return Ok(None);
             }
-            dbg!(&res);
-            dbg!(&song);
-            todo!();
             let res_song: Song = res.try_into()?;
             return Ok(Some(res_song));
         }
@@ -344,7 +352,7 @@ impl MusicApi for TidalApi {
 
         while let Some(query) = queries.pop() {
             let params = json!({
-                "countryCode": "US",
+                "countryCode": self.country_code,
                 "query": query,
                 "type": "TRACKS",
             });

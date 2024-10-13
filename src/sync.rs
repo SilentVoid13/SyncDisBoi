@@ -1,8 +1,8 @@
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Result};
 use serde_json::json;
 use tracing::{debug, info, warn};
 
-use crate::music_api::{DynMusicApi, MusicApi};
+use crate::music_api::{DynMusicApi, MusicApiType};
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
 const SKIPPED_PLAYLISTS: [&str; 10] = [
@@ -22,9 +22,13 @@ const SKIPPED_PLAYLISTS: [&str; 10] = [
 
 pub async fn synchronize(
     src_api: DynMusicApi,
-    dst_api: Box<dyn MusicApi + Sync>,
+    dst_api: DynMusicApi,
     debug: bool,
 ) -> Result<()> {
+    if src_api.api_type() != MusicApiType::YtMusic && dst_api.api_type() != MusicApiType::YtMusic && src_api.country_code() != dst_api.country_code() {
+        return Err(eyre!("source and destination music platforms are in different countries: {} vs {}, this can lead to unexpected results", src_api.country_code(), dst_api.country_code()));
+    }
+
     info!("retrieving playlists...");
     let src_playlists = src_api.get_playlists_full().await?;
     let mut dst_playlists = dst_api.get_playlists_full().await?;

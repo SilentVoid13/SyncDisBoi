@@ -11,12 +11,6 @@ pub struct TidalOAuthDeviceRes {
     pub expires_in: u32,
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct TidalMeResponse {
-    pub user_id: usize,
-}
-
 ////////////
 // V1 API //
 ////////////
@@ -86,6 +80,13 @@ pub struct TidalPlaylistDataResponse {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct TidalMediaResponseSingle {
+    pub data: TidalMediaData,
+    #[allow(dead_code)]
+    pub included: Option<Vec<TidalMediaData>>,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct TidalMediaResponse {
     pub data: Vec<TidalMediaData>,
     pub included: Option<Vec<TidalMediaData>>,
@@ -101,11 +102,16 @@ pub struct TidalMediaData {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 pub struct TidalMediaAttributes {
     pub title: Option<String>,
     pub isrc: Option<String>,
     pub name: Option<String>,
-    #[allow(dead_code)]
-    pub barcode_id: Option<String>,
     pub duration: Option<String>,
+    pub barcode_id: Option<String>,
+
+    // user attributes
+    pub username: Option<String>,
+    pub country: Option<String>,
+    pub email: Option<String>,
 }

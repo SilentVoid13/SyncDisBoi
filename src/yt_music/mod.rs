@@ -17,7 +17,7 @@ use tracing::info;
 
 use self::model::{YtMusicContinuationResponse, YtMusicPlaylistEditResponse, YtMusicResponse};
 use crate::music_api::{
-    MusicApi, OAuthRefreshToken, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC,
+    MusicApi, MusicApiType, OAuthRefreshToken, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC
 };
 use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse};
 use crate::yt_music::response::SearchSongs;
@@ -229,6 +229,16 @@ impl YtMusicApi {
 
 #[async_trait]
 impl MusicApi for YtMusicApi {
+    fn api_type(&self) -> MusicApiType {
+        MusicApiType::YtMusic
+    }
+       
+
+    fn country_code(&self) -> &str {
+        // TODO: it seems impossible to get the country code from YtMusic
+        "UNKNOWN"
+    }
+
     async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist> {
         let privacy_status = match public {
             true => "PUBLIC",

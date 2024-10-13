@@ -11,31 +11,33 @@ It's the perfect solution for music enthusiasts who want to keep their playlists
 
 ## Accuracy
 
-SyncDisBoi focuses on synchronization accuracy, ensuring that each song on the source playlist accurately matches the corresponding song on the destination playlist. This feature is particularly useful for users who prioritize maintaining the integrity of their playlists and avoid ending up with unexpected remixes during synchronization.
+SyncDisBoi focuses on synchronization accuracy, ensuring that each track on the source playlist accurately matches the corresponding track on the destination playlist. This feature is particularly useful for users who prioritize maintaining the integrity of their playlists and avoid ending up with unexpected remixes during synchronization.
 
-SyncDisBoi verifies the following properties to ensure that the two songs match:
+If available, SyncDisBoi uses the [International Standard Recording Code (ISRC)](https://en.wikipedia.org/wiki/International_Standard_Recording_Code) to guarantee correct track matching.
+
+When ISRC codes are not available on the platform API, SyncDisBoi falls back to verifying the following properties to ensure that the two tracks match:
 - Song name resemblance score ([Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance))
 - Album name resemblance score ([Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance))
+- Song duration
 
 Notes:
-- The duration is not used because some songs have incorrect durations with the Youtube Music API.
 - The artist names are not used either because the metadata is inconsistent across platforms. 
-- For Youtube Music, SyncDisBoi won't sync songs lacking album metadata, as this typically indicates a video from Youtube, which lacks the necessary metadata for accurate synchronization.
+- For Youtube Music, SyncDisBoi won't sync tracks lacking album metadata, as this typically indicates a video from Youtube, which lacks the necessary metadata for accurate synchronization.
 
 ## Usage
 
 ```bash
-# convert your playlists from Youtube Music to Spotify
+# sync from Youtube Music to Spotify
 ./sync_dis_boi yt-music spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
-# convert your playlists from Tidal to Youtube Music
+# sync from Tidal to Youtube Music
 ./sync_dis_boi tidal yt-music
-# convert your playlists from Youtube Music to Tidal, with debug mode enabled to generate statistics JSON files 
+# sync from Youtube Music to Tidal, with debug mode enabled to generate statistics JSON files 
 ./sync_dis_boi --debug tidal yt-music
 ```
 
 To use SyncDisBoi, you need to set up account access for the API of the corresponding music platform.
 
-### Spotify API
+### Spotify API setup
 
 - Visit [https://developer.spotify.com/](https://developer.spotify.com/)
   and create an application.
@@ -48,7 +50,7 @@ You will then need to provide the client id and client secret as arguments for S
 Notes:
 - After authorizing access for your Spotify account, SyncDisBoi will open the 'http://localhost:8888/callback' URL in your browser. If you get 'Unable to connect' this is normal.
 
-### Youtube Music API
+### Youtube Music API setup
 
 - On the first run, SyncDisBoi will open up a browser tab to request OAuth access for your Youtube Account.
 - Authorize the application in your browser, then press ENTER in the CLI to continue.
@@ -59,7 +61,7 @@ Notes:
 - By default, SyncDisBoi uses the "Youtube for TV" application credentials to request OAuth access.
 - However, you can also create your own OAuth application, grant access to your account email, and then use it in SyncDisBoi by providing its client id and client secret.
 
-### Tidal API
+### Tidal API setup
 
 - On the first run, SyncDisBoi will open up a browser tab to request OAuth access for your Tidal Account.
 - Authorize the application in your browser, then press ENTER in the CLI to continue.
@@ -72,11 +74,13 @@ Notes:
 
 ### Debug mode
 
-You can enable the debug mode with `--debug` to generate a certain number of JSON files in a `debug/` folder:
-- `conversion_rate.json`: ratio of successfully sychronized songs
-- `missing_songs.json`: list of all non-synchronized songs
-- `new_songs.json`: list of all synchronized songs
-- `songs_with_no_albums.json`: list of songs skipped because they were missing album metadata
+You can enable debug mode (`--debug`) to generate detailed statistics about the synchronization process.
+
+Files are saved in the `debug/` folder:
+- `conversion_rate.json`: success rate of song synchronization
+- `missing_songs.json`: list of tracks that couldn’t be synchronized
+- `new_songs.json`: list of tracks successfully synchronized
+- `songs_with_no_albums.json`: list of songs skipped due to missing album metadata
 
 ## Contributing
 

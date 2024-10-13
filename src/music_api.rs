@@ -12,6 +12,9 @@ pub type DynMusicApi = Box<dyn MusicApi + Sync>;
 
 #[async_trait]
 pub trait MusicApi {
+    fn api_type(&self) -> MusicApiType;
+    fn country_code(&self) -> &str;
+
     async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist>;
     async fn get_playlists_info(&self) -> Result<Vec<Playlist>>;
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>>;
@@ -51,7 +54,7 @@ pub trait MusicApi {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub enum MusicApiType {
     Spotify,
     YtMusic,

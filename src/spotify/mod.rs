@@ -7,6 +7,7 @@ use std::time::Duration;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
+use model::SpotifyUserResponse;
 use reqwest::header::HeaderMap;
 use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
@@ -17,12 +18,13 @@ use tracing::{debug, info, warn};
 use self::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySnapshotResponse, SpotifySongItemResponse,
 };
-use crate::music_api::{MusicApi, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
+use crate::music_api::{MusicApi, MusicApiType, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
 use crate::spotify::model::SpotifySearchResponse;
 
 pub struct SpotifyApi {
     client: reqwest::Client,
     debug: bool,
+    country_code: String,
 }
 
 #[derive(Debug)]
@@ -86,7 +88,13 @@ impl SpotifyApi {
 
         let client = client.build()?;
 
-        Ok(Self { client, debug })
+        let url = format!("{}/me", Self::BASE_API);
+        let res = client.get(&url).send().await?;
+        let res = res.error_for_status()?;
+        let me_res: SpotifyUserResponse = res.json().await?;
+        let country_code = me_res.country;
+
+        Ok(Self { client, debug, country_code })
     }
 
     fn build_authorization_url(client_id: &str) -> Result<String> {
@@ -234,6 +242,14 @@ pub fn push_query(queries: &mut Vec<String>, query: String, max_len: usize) {
 
 #[async_trait]
 impl MusicApi for SpotifyApi {
+    fn api_type(&self) -> MusicApiType {
+        MusicApiType::Spotify
+    }
+
+    fn country_code(&self) -> &str {
+        &self.country_code
+    }
+
     async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist> {
         let path = "/me/playlists";
         let body = json!({
