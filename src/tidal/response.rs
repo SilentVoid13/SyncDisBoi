@@ -111,7 +111,7 @@ impl TryInto<Song> for TidalMediaResponse {
         assert!(self.data.len() == 1);
         let data = self.data.remove(0);
         let duration = &data.attributes.duration.unwrap();
-        let duration = iso8601::duration(&duration).unwrap();
+        let duration = iso8601::duration(duration).unwrap();
         let iso8601::Duration::YMDHMS { year, month, day, hour, minute, second, millisecond } = duration else {
             unreachable!("invalid iso8601 duration");
         };

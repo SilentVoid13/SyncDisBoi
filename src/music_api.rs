@@ -232,3 +232,28 @@ impl Artist {
         generic_name_clean(&self.name)
     }
 }
+
+#[derive(Serialize, Debug)]
+pub struct OAuthReqToken {
+    pub client_id: String,
+    pub device_code: String,
+    pub grant_type: String,
+    pub scope: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct OAuthToken {
+    pub scope: String,
+    pub token_type: String,
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_in: u64,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct OAuthRefreshToken {
+    pub access_token: String,
+    pub expires_in: u64,
+    pub scope: String,
+    pub token_type: String,
+}

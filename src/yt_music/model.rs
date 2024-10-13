@@ -1,27 +1,10 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
-pub struct YtMusicOAuthResponse {
+pub struct YtMusicOAuthDeviceRes {
     pub verification_url: String,
     pub user_code: String,
     pub device_code: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct YtMusicOAuthToken {
-    pub scope: String,
-    pub token_type: String,
-    pub access_token: String,
-    pub refresh_token: String,
-    pub expires_in: u64,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct YtMusicOAuthRefresh {
-    pub access_token: String,
-    pub expires_in: u64,
-    pub scope: String,
-    pub token_type: String,
 }
 
 #[derive(Deserialize, Debug)]

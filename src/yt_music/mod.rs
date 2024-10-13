@@ -9,18 +9,19 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
 use lazy_static::lazy_static;
+use model::YtMusicOAuthDeviceRes;
 use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use tracing::info;
 
 use self::model::{
-    YtMusicContinuationResponse, YtMusicOAuthRefresh, YtMusicOAuthResponse,
+    YtMusicContinuationResponse,
     YtMusicPlaylistEditResponse, YtMusicResponse,
 };
-use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
+use crate::music_api::{MusicApi, OAuthRefreshToken, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
 use crate::yt_music::model::{
-    YtMusicOAuthToken, YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse,
+    YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse,
 };
 use crate::yt_music::response::SearchSongs;
 
@@ -100,9 +101,9 @@ impl YtMusicApi {
         client_id: &str,
         client_secret: &str,
         oauth_token_path: &PathBuf,
-    ) -> Result<YtMusicOAuthToken> {
+    ) -> Result<OAuthToken> {
         let reader = std::fs::File::open(oauth_token_path)?;
-        let mut oauth_token: YtMusicOAuthToken = serde_json::from_reader(reader)?;
+        let mut oauth_token: OAuthToken = serde_json::from_reader(reader)?;
 
         let params = json!({
             "client_id": client_id,
@@ -116,7 +117,7 @@ impl YtMusicApi {
             .send()
             .await?;
         let res = res.error_for_status()?;
-        let refresh_token: YtMusicOAuthRefresh = res.json().await?;
+        let refresh_token: OAuthRefreshToken = res.json().await?;
         oauth_token.access_token = refresh_token.access_token;
         oauth_token.expires_in = refresh_token.expires_in;
         Ok(oauth_token)
@@ -126,7 +127,7 @@ impl YtMusicApi {
         client: &reqwest::Client,
         client_id: &str,
         client_secret: &str,
-    ) -> Result<YtMusicOAuthToken> {
+    ) -> Result<OAuthToken> {
         // 1. request access
         let params = json!({
             "client_id": client_id,
@@ -138,7 +139,7 @@ impl YtMusicApi {
             .send()
             .await?;
         let res = res.error_for_status()?;
-        let oauth_res: YtMusicOAuthResponse = res.json().await?;
+        let oauth_res: YtMusicOAuthDeviceRes = res.json().await?;
 
         let auth_url = format!(
             "{}?user_code={}",
@@ -160,7 +161,7 @@ impl YtMusicApi {
             .send()
             .await?;
         let res = res.error_for_status()?;
-        let token: YtMusicOAuthToken = res.json().await?;
+        let token: OAuthToken = res.json().await?;
         Ok(token)
     }
 

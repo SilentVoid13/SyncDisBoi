@@ -16,9 +16,8 @@ use tracing::{debug, info, warn};
 
 use self::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySnapshotResponse, SpotifySongItemResponse,
-    SpotifyToken,
 };
-use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
+use crate::music_api::{MusicApi, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
 use crate::spotify::model::SpotifySearchResponse;
 
 pub struct SpotifyApi {
@@ -68,7 +67,7 @@ impl SpotifyApi {
             .send()
             .await?;
         let res = res.error_for_status()?;
-        let token: SpotifyToken = res.json().await?;
+        let token: OAuthToken = res.json().await?;
 
         let bearer = format!("Bearer {}", token.access_token);
         let mut headers = HeaderMap::new();

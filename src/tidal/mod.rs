@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
-use model::TidalMediaResponse;
+use model::{TidalMediaResponse, TidalOAuthDeviceRes};
 use reqwest::header::HeaderMap;
 use reqwest::Response;
 use serde::de::DeserializeOwned;
@@ -15,14 +15,13 @@ use serde_json::json;
 use tracing::info;
 
 use self::model::{
-    TidalDeviceRes, TidalMeResponse, TidalOAuthRefresh, TidalPageResponse, TidalPlaylistResponse,
+    TidalMeResponse, TidalPageResponse, TidalPlaylistResponse,
     TidalSongItemResponse
 };
-use crate::music_api::{MusicApi, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
+use crate::music_api::{MusicApi, OAuthRefreshToken, OAuthReqToken, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC};
 use crate::tidal::model::{
-    TidalOAuthToken, TidalPlaylistCreateResponse, TidalReqToken, TidalSearchResponse,
+    TidalPlaylistCreateResponse, TidalSearchResponse,
 };
-use crate::yt_music::model::ItemSectionRendererContent;
 
 pub struct TidalApi {
     client: reqwest::Client,
@@ -33,7 +32,6 @@ pub struct TidalApi {
 #[derive(Debug)]
 enum HttpMethod<'a> {
     Get(&'a serde_json::Value),
-    Post(&'a serde_json::Value),
     Put(&'a serde_json::Value),
 }
 
@@ -93,7 +91,7 @@ impl TidalApi {
         })
     }
 
-    async fn request_token(client_id: &str, client_secret: &str) -> Result<TidalOAuthToken> {
+    async fn request_token(client_id: &str, client_secret: &str) -> Result<OAuthToken> {
         let client = reqwest::Client::new();
         let params = json!({
             "client_id": client_id,
@@ -101,14 +99,14 @@ impl TidalApi {
         });
         let res = client.post(Self::AUTH_URL).form(&params).send().await?;
         let res = res.error_for_status()?;
-        let device_res: TidalDeviceRes = res.json().await?;
+        let device_res: TidalOAuthDeviceRes = res.json().await?;
         let url = format!("https://{}", device_res.verification_uri_complete);
 
         webbrowser::open(&url)?;
         info!("please authorize the app in your browser and press enter");
         std::io::stdin().read_exact(&mut [0]).unwrap();
 
-        let auth_token = TidalReqToken {
+        let auth_token = OAuthReqToken {
             client_id: client_id.to_string(),
             device_code: device_res.device_code.clone(),
             grant_type: "urn:ietf:params:oauth:grant-type:device_code".to_string(),
@@ -120,7 +118,7 @@ impl TidalApi {
             .form(&auth_token)
             .send()
             .await?;
-        let token: TidalOAuthToken = res.json().await?;
+        let token: OAuthToken = res.json().await?;
 
         Ok(token)
     }
@@ -129,10 +127,10 @@ impl TidalApi {
         client_id: &str,
         client_secret: &str,
         oauth_token_path: &PathBuf,
-    ) -> Result<TidalOAuthToken> {
+    ) -> Result<OAuthToken> {
         let client = reqwest::Client::new();
         let reader = std::fs::File::open(oauth_token_path)?;
-        let mut oauth_token: TidalOAuthToken = serde_json::from_reader(reader)?;
+        let mut oauth_token: OAuthToken = serde_json::from_reader(reader)?;
 
         let params = json!({
             "client_id": client_id,
@@ -142,7 +140,7 @@ impl TidalApi {
         });
         let res = client.post(Self::TOKEN_URL).form(&params).send().await?;
         let res = res.error_for_status()?;
-        let refresh_token: TidalOAuthRefresh = res.json().await?;
+        let refresh_token: OAuthRefreshToken = res.json().await?;
         oauth_token.access_token = refresh_token.access_token;
         oauth_token.expires_in = refresh_token.expires_in;
         oauth_token.scope = refresh_token.scope;
@@ -158,14 +156,14 @@ impl TidalApi {
     where
         T: DeserializeOwned + std::fmt::Debug,
     {
-        let mut res: TidalPageResponse<T> = self.make_request_json(url, &method, limit, 0).await?;
+        let mut res: TidalPageResponse<T> = self.make_request_json(url, method, limit, 0).await?;
         if res.items.is_empty() {
             return Ok(res);
         }
 
         while res.items.len() % limit == 0 {
             let offset = res.items.len();
-            let res2: TidalPageResponse<T> = self.make_request_json(url, &method, limit, offset).await?;
+            let res2: TidalPageResponse<T> = self.make_request_json(url, method, limit, offset).await?;
             if res2.items.is_empty() {
                 break;
             }
@@ -180,9 +178,6 @@ impl TidalApi {
             HttpMethod::Get(p) => {
                 self.client.get(url).query(p)
             }
-            HttpMethod::Post(b) => {
-                self.client.post(url).json(b)
-            },
             HttpMethod::Put(b) => {
                 self.client.put(url).form(b)
             }
@@ -304,7 +299,7 @@ impl MusicApi for TidalApi {
         let params = json!({
             "trns": format!("trn:playlist:{}", playlist.id),
         });
-        let res = self.make_request(&url, &HttpMethod::Put(&params), 0, 5).await?;
+        let _res = self.make_request(&url, &HttpMethod::Put(&params), 0, 5).await?;
         Ok(())
     }
 

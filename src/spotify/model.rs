@@ -1,17 +1,10 @@
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
-pub struct SpotifyToken {
-    pub access_token: String,
-    pub token_type: String,
-    pub refresh_token: String,
-    pub expires_in: u32,
-}
-
-#[derive(Deserialize, Debug)]
 pub struct SpotifyEmptyResponse {}
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 pub struct SpotifySnapshotResponse {
     pub snapshot_id: String,
 }
@@ -36,6 +29,7 @@ impl<T> SpotifyPageResponse<T> {
 pub struct SpotifyPlaylistResponse {
     pub id: String,
     pub name: String,
+    #[allow(dead_code)]
     pub public: bool,
 }
 
@@ -69,5 +63,6 @@ pub struct SpotifyAlbumResponse {
 #[derive(Deserialize, Debug)]
 pub struct SpotifyExternalIdsResponse {
     pub isrc: String,
+    #[allow(dead_code)]
     pub upc: Option<String>,
 }

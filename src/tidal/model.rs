@@ -1,38 +1,14 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct TidalDeviceRes {
+#[allow(dead_code)]
+pub struct TidalOAuthDeviceRes {
     pub user_code: String,
     pub device_code: String,
     pub verification_uri: String,
     pub verification_uri_complete: String,
     pub expires_in: u32,
-}
-
-#[derive(Serialize, Debug)]
-pub struct TidalReqToken {
-    pub client_id: String,
-    pub device_code: String,
-    pub grant_type: String,
-    pub scope: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct TidalOAuthToken {
-    pub scope: String,
-    pub token_type: String,
-    pub access_token: String,
-    pub refresh_token: String,
-    pub expires_in: u64,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct TidalOAuthRefresh {
-    pub access_token: String,
-    pub expires_in: u64,
-    pub scope: String,
-    pub token_type: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -99,6 +75,7 @@ pub struct TidalSearchResponse {
 
 #[derive(Deserialize, Debug)]
 pub struct TidalPlaylistCreateResponse {
+    #[allow(dead_code)]
     pub trn: String,
     pub data: TidalPlaylistDataResponse,
 }
@@ -128,6 +105,7 @@ pub struct TidalMediaAttributes {
     pub title: Option<String>,
     pub isrc: Option<String>,
     pub name: Option<String>,
+    #[allow(dead_code)]
     pub barcode_id: Option<String>,
     pub duration: Option<String>,
 }

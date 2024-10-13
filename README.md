@@ -29,6 +29,8 @@ Notes:
 ./sync_dis_boi yt-music spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
 # convert your playlists from Tidal to Youtube Music
 ./sync_dis_boi tidal yt-music
+# convert your playlists from Youtube Music to Tidal, with debug mode enabled to generate statistics JSON files 
+./sync_dis_boi --debug tidal yt-music
 ```
 
 To use SyncDisBoi, you need to set up account access for the API of the corresponding music platform.
