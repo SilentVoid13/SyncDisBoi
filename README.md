@@ -5,7 +5,7 @@ SyncDisBoi is a simple and efficient tool designed to synchronize playlists acro
 - [Spotify](https://open.spotify.com/)
 - [Tidal](https://tidal.com/)
 
-It's the perfect solution for music enthusiasts who want to keep their playlists updated across different music streaming platforms and enjoy the various recommendations algorithms.
+It's the perfect solution for music enthusiasts who want to keep their playlists updated across different music streaming platforms and enjoy the various recommendations algorithms, or who simply want to migrate to a new music platform and preserve their playlists.
 
 > **Disclaimer**: While SyncDisBoi doesn't perform any deletion operations, it's always a good practice to backup your playlists. I am not responsible for any unintended changes to your playlists.
 
@@ -21,18 +21,22 @@ When ISRC codes are not available on the platform API, SyncDisBoi falls back to 
 - Song duration
 
 Notes:
-- The artist names are not used either because the metadata is inconsistent across platforms. 
+- The artist names are not used because the metadata is inconsistent across platforms. 
 - For Youtube Music, SyncDisBoi won't sync tracks lacking album metadata, as this typically indicates a video from Youtube, which lacks the necessary metadata for accurate synchronization.
 
 ## Usage
 
+You can find binaries of SyncDisBoi for all major platforms (Linux, Windows, Mac) under [releases](https://github.com/SilentVoid13/SyncDisBoi/releases).
+
 ```bash
 # sync from Youtube Music to Spotify
 ./sync_dis_boi yt-music spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
+# sync from Spotify to Tidal
+./sync_dis_boi spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" tidal
 # sync from Tidal to Youtube Music
 ./sync_dis_boi tidal yt-music
-# sync from Youtube Music to Tidal, with debug mode enabled to generate statistics JSON files 
-./sync_dis_boi --debug tidal yt-music
+# sync from Spotify to Youtube Music, with debug mode enabled to generate detailed statistics about the synchronization process
+./sync_dis_boi --debug spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" yt-music
 ```
 
 To use SyncDisBoi, you need to set up account access for the API of the corresponding music platform.
@@ -48,7 +52,7 @@ To use SyncDisBoi, you need to set up account access for the API of the correspo
 You will then need to provide the client id and client secret as arguments for SyncDisBoi.
 
 Notes:
-- After authorizing access for your Spotify account, SyncDisBoi will open the 'http://localhost:8888/callback' URL in your browser. If you get 'Unable to connect' this is normal.
+- After authorizing access for your Spotify account, SyncDisBoi will open the 'http://localhost:8888/callback' URL in your browser. If you get 'Unable to connect' this is normal as the server is quickly opened and shutdown once it receives the auth code.
 
 ### Youtube Music API setup
 
