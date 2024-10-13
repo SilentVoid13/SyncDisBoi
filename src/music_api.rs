@@ -3,6 +3,7 @@ use color_eyre::eyre::Result;
 use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use strsim::normalized_levenshtein;
+use tracing::debug;
 
 use crate::utils::generic_name_clean;
 
@@ -133,10 +134,7 @@ impl Song {
 
         // we allow a 1 second difference
         if !(dur1 - 1..=dur1 + 1).contains(&dur2) {
-            println!(
-                "Duration: {} vs {} --> {} VS {}",
-                dur1, dur2, self.name, other.name
-            );
+            debug!("Duration: {} vs {} --> {} VS {}", dur1, dur2, self.name, other.name);
             return false;
         }
 
