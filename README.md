@@ -45,7 +45,7 @@ To use SyncDisBoi, you need to set up account access for the API of the correspo
 
 - Visit [https://developer.spotify.com/](https://developer.spotify.com/)
   and create an application.
-- Add [https://localhost:8888/callback](https://localhost:8888/callback) as a
+- Add [http://localhost:8888/callback](http://localhost:8888/callback) as a
   redirect URI in your application settings.
 - Copy the application client id and client secret.
 
