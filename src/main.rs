@@ -3,10 +3,11 @@ mod build_api;
 
 use std::path::Path;
 
-use args::RootArgs;
+use args::{MusicPlatformDst, RootArgs};
 use build_api::BuildApi;
 use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
+use sync_dis_boi::export::export;
 use sync_dis_boi::sync::synchronize;
 use tracing::{debug, info, Level};
 use tracing_subscriber::filter::Targets;
@@ -45,8 +46,15 @@ async fn main() -> Result<()> {
     debug!("logging level: {}", level);
 
     let src_api = args.src.parse(&args, &config_dir).await?;
-    let dst_api = args.src.get_dst().parse(&args, &config_dir).await?;
-    synchronize(src_api, dst_api, args.debug).await?;
+    match args.src.get_dst() {
+        MusicPlatformDst::Export { dest, minify } => {
+            export(src_api, dest, *minify).await?;
+        },
+        _ => {
+            let dst_api = args.src.get_dst().parse(&args, &config_dir).await?;
+            synchronize(src_api, dst_api, args.debug).await?;
+        }
+    }
 
     Ok(())
 }

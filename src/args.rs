@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand, ValueEnum};
 use tracing::Level;
 
@@ -128,6 +130,14 @@ pub enum MusicPlatformDst {
         #[arg(long)]
         clear_cache: bool,
     },
+    Export {
+        /// The path to the file to export the playlists to
+        #[arg(short, long)]
+        dest: PathBuf,
+        /// Minify the exported JSON file
+        #[arg(long, default_value = "false")]
+        minify: bool,
+    }
 }
 
 #[derive(ValueEnum, Clone, Debug)]

@@ -5,7 +5,10 @@ SyncDisBoi is a simple and efficient tool designed to synchronize playlists acro
 - [Spotify](https://open.spotify.com/)
 - [Tidal](https://tidal.com/)
 
-It's the perfect solution for music enthusiasts who want to keep their playlists updated across different music streaming platforms and enjoy the various recommendations algorithms, or who simply want to migrate to a new music platform and preserve their playlists.
+SyncDisBoi is the ideal tool for music enthusiasts who want to:
+- Seamlessly migrate to a new music platform while preserving their playlists
+- Keep playlists in sync across multiple platforms and enjoy each platform's unique recommendation algorithms
+- Export existing playlists in a portable JSON format for easy backup or sharing
 
 > **Disclaimer**: While SyncDisBoi doesn't perform any deletion operations, it's always a good practice to backup your playlists. I am not responsible for any unintended changes to your playlists.
 
@@ -24,10 +27,16 @@ Notes:
 - The artist names are not used because the metadata is inconsistent across platforms. 
 - For Youtube Music, SyncDisBoi won't sync tracks lacking album metadata, as this typically indicates a video from Youtube, which lacks the necessary metadata for accurate synchronization.
 
+## Download and Build
+
+Pre-built binaries of SyncDisBoi for Linux, Windows, and macOS are available under the [releases](https://github.com/SilentVoid13/SyncDisBoi/releases) section.
+
+If you prefer to build SyncDisBoi from source you simply need the rust toolchain, e.g. available via [rustup](https://rustup.rs/).
+A [Nix flake](https://github.com/SilentVoid13/SyncDisBoi/blob/master/flake.nix) is also available with a pre-configured environment with support for cross-compilation.
+
 ## Usage
 
-You can find binaries of SyncDisBoi for all major platforms (Linux, Windows, Mac) under [releases](https://github.com/SilentVoid13/SyncDisBoi/releases).
-
+Here are some command examples:
 ```bash
 # sync from Youtube Music to Spotify
 ./sync_dis_boi yt-music spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
@@ -37,6 +46,13 @@ You can find binaries of SyncDisBoi for all major platforms (Linux, Windows, Mac
 ./sync_dis_boi tidal yt-music
 # sync from Spotify to Youtube Music, with debug mode enabled to generate detailed statistics about the synchronization process
 ./sync_dis_boi --debug spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" yt-music
+
+# export Spotify playlists to JSON
+./sync_dis_boi spotify export -d ./spotify.json
+# export Youtube Music playlists to JSON
+./sync_dis_boi yt-music export -d ./yt_music.json
+# export Tidal playlists to JSON
+./sync_dis_boi tidal export -d ./tidal.json
 ```
 
 To use SyncDisBoi, you need to set up account access for the API of the corresponding music platform.

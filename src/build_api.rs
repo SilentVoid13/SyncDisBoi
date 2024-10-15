@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use async_trait::async_trait;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Result};
 use sync_dis_boi::music_api::DynMusicApi;
 use sync_dis_boi::spotify::SpotifyApi;
 use sync_dis_boi::tidal::TidalApi;
@@ -72,6 +72,8 @@ macro_rules! impl_build_api {
                         )
                         .await?,
                     ),
+                    #[allow(unreachable_patterns)]
+                    _ => return Err(eyre!("Invalid API type: {:?}", self)),
                 };
                 Ok(api)
             }
