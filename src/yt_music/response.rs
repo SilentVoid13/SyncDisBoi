@@ -34,7 +34,11 @@ impl TryInto<Playlists> for YtMusicResponse {
         {
             let id = mtrir.get_id().ok_or(eyre!("No playlist id"))?;
             let id = YtMusicApi::clean_playlist_id(&id);
-            let name = mtrir.get_name().ok_or(eyre!("No playlist name"))?;
+            let name = mtrir
+                .get_name()
+                .ok_or(eyre!("No playlist name"))?
+                .trim()
+                .to_string();
             let playlist = Playlist {
                 id,
                 name,

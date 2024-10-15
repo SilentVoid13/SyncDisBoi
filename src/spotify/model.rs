@@ -26,10 +26,13 @@ pub struct SpotifySearchResponse {
 pub struct SpotifyPageResponse<T> {
     pub items: Vec<T>,
     pub total: u32,
+    pub next: Option<String>,
 }
 impl<T> SpotifyPageResponse<T> {
-    pub fn merge(&mut self, other: &mut Self) {
-        self.items.append(&mut other.items);
+    pub fn merge(&mut self, other: Self) {
+        self.items.extend(other.items);
+        self.total += other.total;
+        self.next = other.next;
     }
 }
 

@@ -23,7 +23,7 @@ impl TryInto<Playlist> for TidalPlaylistResponse {
     fn try_into(self) -> Result<Playlist, Self::Error> {
         Ok(Playlist {
             id: self.uuid,
-            name: self.title,
+            name: self.title.trim().to_string(),
             songs: vec![],
         })
     }

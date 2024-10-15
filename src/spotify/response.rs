@@ -52,7 +52,7 @@ impl TryInto<Playlist> for SpotifyPlaylistResponse {
     fn try_into(self) -> Result<Playlist, Self::Error> {
         Ok(Playlist {
             id: self.id,
-            name: self.name,
+            name: self.name.trim().to_string(),
             songs: vec![],
         })
     }

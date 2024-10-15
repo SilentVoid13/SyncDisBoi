@@ -154,24 +154,19 @@ impl SpotifyApi {
         &self,
         path: &str,
         method: HttpMethod<'_>,
-        limit: u32,
+        limit: usize,
     ) -> Result<SpotifyPageResponse<T>>
     where
         T: DeserializeOwned,
     {
-        let mut offset = 0;
-        let mut response: SpotifyPageResponse<T> =
-            self.make_request_json(path, &method, limit, offset).await?;
-        let mut total = response.total;
-
-        while offset < total {
-            offset += limit;
-            let mut response2: SpotifyPageResponse<T> =
-                self.make_request_json(path, &method, limit, offset).await?;
-            total = response2.total;
-            response.merge(&mut response2);
+        let mut res: SpotifyPageResponse<T> =
+            self.make_request_json(path, &method, limit, 0).await?;
+        while res.next.is_some() {
+            let offset = res.items.len();
+            let res2 = self.make_request_json(path, &method, limit, offset).await?;
+            res.merge(res2);
         }
-        Ok(response)
+        Ok(res)
     }
 
     async fn api_rate_wait(&self, res: &Response) -> Result<()> {
@@ -194,8 +189,8 @@ impl SpotifyApi {
         &self,
         path: &str,
         method: &HttpMethod<'_>,
-        limit: u32,
-        offset: u32,
+        limit: usize,
+        offset: usize,
     ) -> Result<Response> {
         let endpoint = self.build_endpoint(path);
 
@@ -205,7 +200,7 @@ impl SpotifyApi {
             HttpMethod::Put(b) => self.client.put(endpoint).json(b),
             HttpMethod::Delete(b) => self.client.delete(endpoint).json(b),
         };
-        //request = request.query(&[("limit", limit), ("offset", offset)]);
+        request = request.query(&[("limit", limit), ("offset", offset)]);
         let res = request.send().await?;
         if res.status() == StatusCode::TOO_MANY_REQUESTS {
             self.api_rate_wait(&res).await?;
@@ -223,8 +218,8 @@ impl SpotifyApi {
         &self,
         path: &str,
         method: &HttpMethod<'_>,
-        limit: u32,
-        offset: u32,
+        limit: usize,
+        offset: usize,
     ) -> Result<T>
     where
         T: DeserializeOwned,
@@ -422,7 +417,6 @@ impl MusicApi for SpotifyApi {
             let body = json!({
                 "ids": ids,
             });
-            dbg!(&body);
             self.make_request("/me/tracks", &HttpMethod::Put(&body), 50, 0)
                 .await?;
         }
