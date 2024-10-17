@@ -54,7 +54,8 @@ pub trait MusicApi {
         Ok(results)
     }
 
-    async fn like_songs(&self, songs: &[Song]) -> Result<()>;
+    async fn add_like(&self, songs: &[Song]) -> Result<()>;
+    async fn get_likes(&self) -> Result<Vec<Song>>;
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]

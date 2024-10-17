@@ -20,10 +20,11 @@ use crate::music_api::{
     Song, Songs, PLAYLIST_DESC,
 };
 use crate::tidal::model::{TidalPlaylistCreateResponse, TidalSearchResponse};
+use crate::ConfigArgs;
 
 pub struct TidalApi {
     client: reqwest::Client,
-    debug: bool,
+    config: ConfigArgs,
     user_id: String,
     country_code: String,
 }
@@ -48,8 +49,7 @@ impl TidalApi {
         client_secret: &str,
         oauth_token_path: PathBuf,
         clear_cache: bool,
-        debug: bool,
-        proxy: Option<&str>,
+        config: ConfigArgs,
     ) -> Result<Self> {
         let token = if !oauth_token_path.exists() || clear_cache {
             info!("requesting new token");
@@ -72,7 +72,7 @@ impl TidalApi {
         let mut client = reqwest::Client::builder()
             .cookie_store(true)
             .default_headers(headers);
-        if let Some(proxy) = proxy {
+        if let Some(proxy) = &config.proxy {
             client = client
                 .proxy(reqwest::Proxy::all(proxy)?)
                 .danger_accept_invalid_certs(true)
@@ -87,7 +87,7 @@ impl TidalApi {
 
         Ok(Self {
             client,
-            debug,
+            config,
             user_id: me_res.data.id,
             country_code,
         })
@@ -207,7 +207,7 @@ impl TidalApi {
         let res = self
             .make_request(url, method, Some((limit, offset)))
             .await?;
-        let obj = if self.debug {
+        let obj = if self.config.debug {
             let text = res.text().await?;
             std::fs::write("debug/tidal_last_res.json", &text)?;
             serde_json::from_str(&text)?
@@ -374,7 +374,11 @@ impl MusicApi for TidalApi {
         Ok(None)
     }
 
-    async fn like_songs(&self, songs: &[Song]) -> Result<()> {
+    async fn add_like(&self, songs: &[Song]) -> Result<()> {
+        if songs.is_empty() {
+            return Ok(());
+        }
+
         let url = format!(
             "{}/v1/users/{}/favorites/tracks",
             Self::API_URL,
@@ -393,5 +397,20 @@ impl MusicApi for TidalApi {
         self.make_request(&url, &HttpMethod::Post(&params), None)
             .await?;
         Ok(())
+    }
+
+    async fn get_likes(&self) -> Result<Vec<Song>> {
+        let url = format!(
+            "{}/v1/users/{}/favorites/tracks",
+            Self::API_URL,
+            self.user_id
+        );
+        let params = json!({
+            "countryCode": self.country_code,
+        });
+        let res: TidalPageResponse<TidalSongItemResponse> =
+            self.paginated_request(&url, &HttpMethod::Get(&params), 100).await?;
+        let songs: Songs = res.try_into()?;
+        Ok(songs.0)
     }
 }

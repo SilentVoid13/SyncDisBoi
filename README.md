@@ -6,7 +6,7 @@ SyncDisBoi is a simple and efficient tool designed to synchronize playlists acro
 - [Tidal](https://tidal.com/)
 
 SyncDisBoi is the ideal tool for music enthusiasts who want to:
-- Seamlessly migrate to a new music platform while preserving their playlists
+- Seamlessly migrate to a new music platform while preserving their playlists and likes
 - Keep playlists in sync across multiple platforms and enjoy each platform's unique recommendation algorithms
 - Export existing playlists in a portable JSON format for easy backup or sharing
 
@@ -40,10 +40,10 @@ Here are some command examples:
 ```bash
 # sync from Youtube Music to Spotify
 ./sync_dis_boi yt-music spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
-# sync from Spotify to Tidal
-./sync_dis_boi spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" tidal
-# sync from Tidal to Youtube Music
-./sync_dis_boi tidal yt-music
+# sync from Spotify to Tidal, sync likes as well
+./sync_dis_boi --sync-likes spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" tidal
+# sync from Tidal to Youtube Music, like all synchronized songs
+./sync_dis_boi --like-all tidal yt-music
 # sync from Spotify to Youtube Music, with debug mode enabled to generate detailed statistics about the synchronization process
 ./sync_dis_boi --debug spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" yt-music
 

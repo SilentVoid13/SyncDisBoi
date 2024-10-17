@@ -192,7 +192,7 @@ impl TryInto<SearchSongs> for YtMusicResponse {
                 name,
                 artists,
                 album,
-                duration_ms: 0,
+                duration_ms: duration,
             };
 
             songs_vec.push(song);

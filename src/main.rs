@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
         std::fs::create_dir_all(&config_dir)?;
     }
 
-    if args.debug {
+    if args.config.debug {
         let debug_dir = Path::new("debug");
         if !debug_dir.exists() {
             debug!("creating debug directory");
@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         },
         _ => {
             let dst_api = args.src.get_dst().parse(&args, &config_dir).await?;
-            synchronize(src_api, dst_api, args.debug).await?;
+            synchronize(src_api, dst_api, args.config).await?;
         }
     }
 

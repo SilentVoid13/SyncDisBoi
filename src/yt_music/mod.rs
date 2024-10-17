@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
 use lazy_static::lazy_static;
-use model::YtMusicOAuthDeviceRes;
+use model::{YtMusicAddLikeResponse, YtMusicOAuthDeviceRes};
 use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde_json::json;
@@ -22,6 +22,7 @@ use crate::music_api::{
 };
 use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse};
 use crate::yt_music::response::SearchSongs;
+use crate::ConfigArgs;
 
 lazy_static! {
     static ref CONTEXT: serde_json::Value = json!({
@@ -36,7 +37,7 @@ lazy_static! {
 
 pub struct YtMusicApi {
     client: reqwest::Client,
-    debug: bool,
+    config: ConfigArgs,
 }
 
 impl YtMusicApi {
@@ -55,8 +56,7 @@ impl YtMusicApi {
         client_secret: &str,
         oauth_token_path: PathBuf,
         clear_cache: bool,
-        debug: bool,
-        proxy: Option<&str>,
+        config: ConfigArgs,
     ) -> Result<Self> {
         let mut headers = HeaderMap::new();
         headers.insert("User-Agent", Self::OAUTH_USER_AGENT.parse()?);
@@ -67,6 +67,7 @@ impl YtMusicApi {
         let token = if !oauth_token_path.exists() || clear_cache {
             Self::request_token(&client, client_id, client_secret).await?
         } else {
+            info!("refreshing token");
             Self::refresh_token(&client, client_id, client_secret, &oauth_token_path).await?
         };
         // Write new token
@@ -84,14 +85,14 @@ impl YtMusicApi {
         let mut client = reqwest::Client::builder()
             .cookie_store(true)
             .default_headers(headers);
-        if let Some(proxy) = proxy {
+        if let Some(proxy) = &config.proxy {
             client = client
                 .proxy(reqwest::Proxy::all(proxy)?)
                 .danger_accept_invalid_certs(true)
         }
         let client = client.build()?;
 
-        Ok(YtMusicApi { client, debug })
+        Ok(YtMusicApi { client, config })
     }
 
     async fn refresh_token(
@@ -210,7 +211,7 @@ impl YtMusicApi {
         let endpoint = self.build_endpoint(path, ctoken);
         let res = self.client.post(endpoint).json(&body).send().await?;
         let res = res.error_for_status()?;
-        let obj = if self.debug {
+        let obj = if self.config.debug {
             let text = res.text().await?;
             std::fs::write("debug/yt_music_last_res.json", &text)?;
             serde_json::from_str(&text)?
@@ -356,32 +357,58 @@ impl MusicApi for YtMusicApi {
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
-        let mut queries = song.build_queries();
-
         let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
-        let params = format!("EgWKAQI{}{}", "I", ignore_spelling);
 
-        while let Some(query) = queries.pop() {
+        if let Some(isrc) = &song.isrc {
             let body = json!({
-                "query": query,
-                "params": params,
+                "query": format!("\"{}\"", isrc),
             });
             let response = self
                 .make_request::<YtMusicResponse>("search", &body, None)
                 .await?;
-            let res_songs: SearchSongs = response.try_into()?;
-            // iterate over top 3 results
-            for res_song in res_songs.0.into_iter().take(3) {
-                if song.compare(&res_song) {
-                    return Ok(Some(res_song));
+            let mut res_songs: SearchSongs = response.try_into()?;
+            if !res_songs.0.is_empty() {
+                return Ok(Some(res_songs.0.remove(0)));
+            }
+        } else {
+            let params = format!("EgWKAQ{}{}", "II", ignore_spelling);
+            let mut queries = song.build_queries();
+            while let Some(query) = queries.pop() {
+                let body = json!({
+                    "query": query,
+                    "params": params,
+                });
+                let response = self
+                    .make_request::<YtMusicResponse>("search", &body, None)
+                    .await?;
+                let res_songs: SearchSongs = response.try_into()?;
+                // iterate over top 3 results
+                for res_song in res_songs.0.into_iter().take(3) {
+                    if song.compare(&res_song) {
+                        return Ok(Some(res_song));
+                    }
                 }
             }
         }
         Ok(None)
     }
 
-    async fn like_songs(&self, _songs: &[Song]) -> Result<()> {
-        todo!();
+    async fn add_like(&self, songs: &[Song]) -> Result<()> {
+        // TODO: find a way to bulk-like
+        for song in songs {
+            let body = json!({
+                "target": {
+                    "videoId": song.id,
+                }
+            });
+            let _: YtMusicAddLikeResponse = self.make_request("like/like", &body, None).await?;
+        }
+        Ok(())
+    }
+
+    async fn get_likes(&self) -> Result<Vec<Song>> {
+        let songs = self.get_playlist_songs("LM").await?;
+        Ok(songs)
     }
 }
 

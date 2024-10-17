@@ -22,10 +22,11 @@ use crate::music_api::{
     MusicApi, MusicApiType, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC,
 };
 use crate::spotify::model::SpotifySearchResponse;
+use crate::ConfigArgs;
 
 pub struct SpotifyApi {
     client: reqwest::Client,
-    debug: bool,
+    config: ConfigArgs,
     country_code: String,
 }
 
@@ -44,6 +45,7 @@ impl SpotifyApi {
     const SCOPES: &'static [&'static str] = &[
         "user-read-email",
         "user-read-private",
+        "user-library-read",
         "user-library-modify",
         "playlist-read-collaborative",
         "playlist-modify-public",
@@ -51,12 +53,7 @@ impl SpotifyApi {
         "playlist-modify-private",
     ];
 
-    pub async fn new(
-        client_id: &str,
-        client_secret: &str,
-        debug: bool,
-        proxy: Option<&str>,
-    ) -> Result<Self> {
+    pub async fn new(client_id: &str, client_secret: &str, config: ConfigArgs) -> Result<Self> {
         let auth_url = SpotifyApi::build_authorization_url(client_id)?;
         let auth_code = SpotifyApi::listen_for_code(&auth_url).await?;
 
@@ -84,7 +81,7 @@ impl SpotifyApi {
             .default_headers(headers)
             .cookie_store(true);
 
-        if let Some(proxy) = proxy {
+        if let Some(proxy) = &config.proxy {
             client = client
                 .proxy(reqwest::Proxy::all(proxy)?)
                 .danger_accept_invalid_certs(true)
@@ -100,7 +97,7 @@ impl SpotifyApi {
 
         Ok(Self {
             client,
-            debug,
+            config,
             country_code,
         })
     }
@@ -225,7 +222,7 @@ impl SpotifyApi {
         T: DeserializeOwned,
     {
         let res = self.make_request(path, method, limit, offset).await?;
-        let obj = if self.debug {
+        let obj = if self.config.debug {
             let text = res.text().await?;
             std::fs::write("debug/spotify_last_res.json", &text)?;
             serde_json::from_str(&text)?
@@ -238,7 +235,7 @@ impl SpotifyApi {
 
 pub fn push_query(queries: &mut Vec<String>, query: String, max_len: usize) {
     if query.len() > max_len {
-        debug!("hit query limit: {}, skipping", query);
+        debug!("hit query size limit: {}, skipping", query);
         return;
     }
     queries.push(query);
@@ -410,7 +407,7 @@ impl MusicApi for SpotifyApi {
         return Ok(None);
     }
 
-    async fn like_songs(&self, songs: &[Song]) -> Result<()> {
+    async fn add_like(&self, songs: &[Song]) -> Result<()> {
         // NOTE: A maximum of 50 items can be specified in one request
         for songs_chunk in songs.chunks(50) {
             let ids: Vec<&str> = songs_chunk.iter().map(|s| s.id.as_str()).collect();
@@ -421,6 +418,14 @@ impl MusicApi for SpotifyApi {
                 .await?;
         }
         Ok(())
+    }
+
+    async fn get_likes(&self) -> Result<Vec<Song>> {
+        let res: SpotifyPageResponse<SpotifySongItemResponse> = self
+            .paginated_request("/me/tracks", HttpMethod::Get(&[]), 50)
+            .await?;
+        let songs: Songs = res.try_into()?;
+        Ok(songs.0)
     }
 }
 

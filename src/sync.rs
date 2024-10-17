@@ -2,7 +2,8 @@ use color_eyre::eyre::{eyre, Result};
 use serde_json::json;
 use tracing::{debug, info, warn};
 
-use crate::music_api::{DynMusicApi, MusicApiType};
+use crate::music_api::{DynMusicApi, MusicApiType, Song};
+use crate::ConfigArgs;
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
 const SKIPPED_PLAYLISTS: [&str; 10] = [
@@ -20,17 +21,29 @@ const SKIPPED_PLAYLISTS: [&str; 10] = [
     "High Energy Mix",
 ];
 
-pub async fn synchronize(src_api: DynMusicApi, dst_api: DynMusicApi, debug: bool) -> Result<()> {
-    if src_api.api_type() != MusicApiType::YtMusic
+pub async fn synchronize(
+    src_api: DynMusicApi,
+    dst_api: DynMusicApi,
+    config: ConfigArgs,
+) -> Result<()> {
+    if !config.diff_country
+        && src_api.api_type() != MusicApiType::YtMusic
         && dst_api.api_type() != MusicApiType::YtMusic
         && src_api.country_code() != dst_api.country_code()
     {
-        return Err(eyre!("source and destination music platforms are in different countries: {} vs {}, this can lead to unexpected results", src_api.country_code(), dst_api.country_code()));
+        return Err(eyre!(
+            "source and destination music platforms are in different countries ({} vs {}). \
+                You can specify --diff-country to allow it, \
+                but this might result in incorrect sync results.",
+            src_api.country_code(),
+            dst_api.country_code()
+        ));
     }
 
     info!("retrieving playlists...");
     let src_playlists = src_api.get_playlists_full().await?;
     let mut dst_playlists = dst_api.get_playlists_full().await?;
+    let dst_likes = dst_api.get_likes().await?;
 
     let mut all_missing_songs = json!({});
     let mut all_new_songs = json!({});
@@ -71,7 +84,7 @@ pub async fn synchronize(src_api: DynMusicApi, dst_api: DynMusicApi, debug: bool
                     "No album metadata for source song \"{}\", skipping",
                     src_song.name
                 );
-                if debug {
+                if config.debug {
                     no_albums_songs
                         .as_array_mut()
                         .unwrap()
@@ -85,12 +98,18 @@ pub async fn synchronize(src_api: DynMusicApi, dst_api: DynMusicApi, debug: bool
             let dst_song = dst_api.search_song(src_song).await?;
             let Some(dst_song) = dst_song else {
                 debug!("no match found for song: {}", src_song.name);
-                if debug {
+                if config.debug {
                     missing_songs.as_array_mut().unwrap().push(json!(src_song));
                 }
                 continue;
             };
-            if debug {
+            // HACK: takes into account discrepancy for YtMusic with no ISRC
+            if dst_playlist.songs.contains(&dst_song) {
+                debug!("discrepancy, song already in playlist: {}", dst_song.name);
+                continue;
+            }
+
+            if config.debug {
                 new_songs.as_array_mut().unwrap().push(json!(dst_song));
             }
             dst_songs.push(dst_song);
@@ -100,6 +119,14 @@ pub async fn synchronize(src_api: DynMusicApi, dst_api: DynMusicApi, debug: bool
             dst_api
                 .add_songs_to_playlist(&mut dst_playlist, &dst_songs)
                 .await?;
+            if config.like_all {
+                let new_likes = dst_songs
+                    .iter()
+                    .filter(|s| !dst_likes.contains(s))
+                    .cloned()
+                    .collect::<Vec<Song>>();
+                dst_api.add_like(&new_likes).await?;
+            }
         }
 
         let mut conversion_rate = 1.0;
@@ -116,7 +143,7 @@ pub async fn synchronize(src_api: DynMusicApi, dst_api: DynMusicApi, debug: bool
             );
         }
 
-        if debug {
+        if config.debug {
             stats.as_object_mut().unwrap().insert(
                 src_playlist.name.clone(),
                 serde_json::to_value(conversion_rate)?,
@@ -159,6 +186,29 @@ pub async fn synchronize(src_api: DynMusicApi, dst_api: DynMusicApi, debug: bool
                 )?;
             }
         }
+    }
+
+    if config.sync_likes {
+        info!("synchronizing likes...");
+        let src_likes = src_api.get_likes().await?;
+        let dst_likes = dst_api.get_likes().await?;
+
+        let mut new_likes = Vec::new();
+        for src_like in src_likes {
+            if dst_likes.contains(&src_like) {
+                continue;
+            }
+            let Some(song) = dst_api.search_song(&src_like).await? else {
+                continue;
+            };
+            // HACK: takes into account discrepancy for YtMusic with no ISRC
+            if dst_likes.contains(&song) {
+                debug!("discrepancy, song already in playlist: {}", song.name);
+                continue;
+            }
+            new_likes.push(song);
+        }
+        dst_api.add_like(&new_likes).await?;
     }
 
     info!("Synchronization complete.");

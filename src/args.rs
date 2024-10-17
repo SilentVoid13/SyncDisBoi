@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use sync_dis_boi::ConfigArgs;
 use tracing::Level;
 
 #[derive(Parser, Debug)]
@@ -10,17 +11,8 @@ pub struct RootArgs {
     #[command(subcommand)]
     pub src: MusicPlatformSrc,
 
-    /// Enable debug mode to display and generate debug information during
-    /// synchronization This is useful during development
-    #[arg(long, default_value = "false")]
-    pub debug: bool,
-
-    /// Like all songs that will be sychronized on the destination platform
-    pub like_all: bool,
-
-    /// Proxy to use for all requests in the format http://<ip>:<port>
-    #[arg(long)]
-    pub proxy: Option<String>,
+    #[command(flatten)]
+    pub config: ConfigArgs,
 
     /// Logging level
     #[arg(short, long, value_enum, default_value_t = LoggingLevel::Info)]

@@ -34,8 +34,7 @@ macro_rules! impl_build_api {
                                 client_secret,
                                 oauth_token_path,
                                 *clear_cache,
-                                args.debug,
-                                args.proxy.as_deref(),
+                                args.config.clone(),
                             )
                             .await?,
                         )
@@ -53,8 +52,7 @@ macro_rules! impl_build_api {
                                 client_secret,
                                 oauth_token_path,
                                 *clear_cache,
-                                args.debug,
-                                args.proxy.as_deref(),
+                                args.config.clone(),
                             )
                             .await?,
                         )
@@ -67,8 +65,7 @@ macro_rules! impl_build_api {
                         SpotifyApi::new(
                             &client_id,
                             &client_secret,
-                            args.debug,
-                            args.proxy.as_deref(),
+                            args.config.clone(),
                         )
                         .await?,
                     ),

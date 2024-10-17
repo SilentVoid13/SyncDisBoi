@@ -79,6 +79,7 @@ impl YtMusicResponse {
                 .content
                 .section_list_renderer
                 .contents
+                .as_mut()?
                 .iter_mut()
                 .find(|item| {
                     item.music_playlist_shelf_renderer.is_some() || item.grid_renderer.is_some()
@@ -89,6 +90,7 @@ impl YtMusicResponse {
                 .content
                 .section_list_renderer
                 .contents
+                .as_mut()?
                 .iter_mut()
                 .find(|item| {
                     item.music_playlist_shelf_renderer.is_some()
@@ -99,6 +101,7 @@ impl YtMusicResponse {
             tr.secondary_contents
                 .section_list_renderer
                 .contents
+                .as_mut()?
                 .iter_mut()
                 .find(|item| {
                     item.music_playlist_shelf_renderer.is_some() || item.grid_renderer.is_some()
@@ -131,7 +134,7 @@ impl YtMusicResponse {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentsVec<T> {
-    pub contents: Vec<T>,
+    pub contents: Option<Vec<T>>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -485,7 +488,7 @@ pub enum CommandsContent<T> {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TabbedSearchResultsRenderer {
-    pub tabs: [Tab; 1],
+    pub tabs: Vec<Tab>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -519,4 +522,15 @@ pub struct DeleteCommand {
 #[serde(rename_all = "camelCase")]
 pub struct HandlePlaylistDeletionCommand {
     pub playlist_id: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct YtMusicAddLikeResponse {
+    pub response_context: YtMusicResponseContext,
+}
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct YtMusicResponseContext {
+    pub visitor_data: String,
 }
