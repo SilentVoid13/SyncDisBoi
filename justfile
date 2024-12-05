@@ -1,7 +1,7 @@
 set dotenv-load
 
 sp2yt:
-    cargo run --release -- spotify yt-music
+    cargo run --release -- spotify yt-music --headers ./browser.json
 yt2sp:
     cargo run --release -- yt-music spotify
 yt2ti:

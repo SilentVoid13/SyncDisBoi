@@ -113,6 +113,9 @@ impl Song {
     }
 
     pub fn compare(&self, other: &Self) -> bool {
+        if self.source == other.source {
+            return self.id == other.id;
+        }
         if self.isrc.is_some() && other.isrc.is_some() {
             return self.isrc == other.isrc;
         }

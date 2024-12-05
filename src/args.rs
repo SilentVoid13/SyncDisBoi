@@ -23,6 +23,10 @@ pub struct RootArgs {
 #[command(subcommand_value_name = "SRC_PLATFORM")]
 pub enum MusicPlatformSrc {
     YtMusic {
+        /// The path to the headers JSON file
+        #[arg(short, long)]
+        headers: PathBuf,
+        /*
         /// The client ID for the Youtube API application
         #[arg(
             long,
@@ -40,6 +44,7 @@ pub enum MusicPlatformSrc {
         /// Clear the cached ytmusic_oauth.json file
         #[arg(long)]
         clear_cache: bool,
+        */
         /// The destination music platform
         #[command(subcommand)]
         dst: MusicPlatformDst,
@@ -81,6 +86,10 @@ pub enum MusicPlatformSrc {
 #[command(subcommand_value_name = "DST_PLATFORM")]
 pub enum MusicPlatformDst {
     YtMusic {
+        /// The path to the headers JSON file
+        #[arg(short, long)]
+        headers: PathBuf,
+        /*
         /// The client ID for the Youtube API application
         #[arg(
             long,
@@ -98,6 +107,7 @@ pub enum MusicPlatformDst {
         /// Clear the cached ytmusic_oauth.json file
         #[arg(long)]
         clear_cache: bool,
+        */
     },
     Spotify {
         /// The client ID for the Spotify API application

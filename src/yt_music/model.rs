@@ -39,6 +39,10 @@ impl YtMusicResponse {
         }
     }
 
+    pub fn get_card_shelf(&mut self) -> Option<&mut MusicCardShelfRenderer> {
+        self.get_section_renderer_content()?.music_card_shelf_renderer.as_mut()
+    }
+
     pub fn get_mrlirs(&mut self) -> Option<Vec<&MusicResponsiveListItemRenderer>> {
         let section_renderer_content = self.get_section_renderer_content()?;
         if let Some(mpsr) = &mut section_renderer_content.music_playlist_shelf_renderer {
@@ -96,6 +100,7 @@ impl YtMusicResponse {
                     item.music_playlist_shelf_renderer.is_some()
                         || item.grid_renderer.is_some()
                         || item.music_shelf_renderer.is_some()
+                        || item.music_card_shelf_renderer.is_some()
                 })
         } else if let Some(tr) = self.contents.two_column_browse_results_renderer.as_mut() {
             tr.secondary_contents
@@ -180,9 +185,10 @@ pub struct TabRendererContent {
 #[serde(rename_all = "camelCase")]
 pub struct SectionRendererContent {
     pub music_playlist_shelf_renderer: Option<MusicPlaylistShelfRenderer>,
-    //pub item_section_renderer: Option<ContentsSingle<ItemSectionRendererContent>>,
     pub grid_renderer: Option<GridRenderer>,
     pub music_shelf_renderer: Option<MusicPlaylistShelfRenderer>,
+    pub music_card_shelf_renderer: Option<MusicCardShelfRenderer>,
+    //pub item_section_renderer: Option<ContentsSingle<ItemSectionRendererContent>>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -266,6 +272,9 @@ impl MusicResponsiveListItemRenderer {
     }
 }
 
+pub type MusicCardShelfRenderer = MusicTwoRowItemRenderer;
+
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ItemSectionRendererContent {
@@ -292,6 +301,8 @@ pub struct Item2 {
 pub struct MusicTwoRowItemRenderer {
     pub menu: Option<Menu>,
     pub title: Text,
+    pub subtitle: Option<Text>,
+    pub on_tap: Option<NavigationEndpoint>,
 }
 impl MusicTwoRowItemRenderer {
     pub fn get_id(&self) -> Option<String> {
@@ -350,20 +361,21 @@ impl Run {
     }
 
     pub fn get_id(&self) -> Option<String> {
-        Some(
-            self.navigation_endpoint
-                .as_ref()?
-                .browse_endpoint
-                .as_ref()?
-                .browse_id
-                .clone(),
-        )
+        let ne = self.navigation_endpoint.as_ref()?;
+        if let Some(be) = ne.browse_endpoint.as_ref() {
+            return Some(be.browse_id.clone());
+        }
+        if let Some(we) = ne.watch_endpoint.as_ref() {
+            return Some(we.video_id.clone());
+        }
+        None
     }
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct NavigationEndpoint {
     pub browse_endpoint: Option<BrowseEndpoint>,
+    pub watch_endpoint: Option<WatchEndpoint>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -422,12 +434,7 @@ pub struct MusicItemThumbnailOverlayRendererContent {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MusicPlayButtonRenderer {
-    pub play_navigation_endpoint: Option<PlayNavigationEndpoint>,
-}
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct PlayNavigationEndpoint {
-    pub watch_endpoint: WatchEndpoint,
+    pub play_navigation_endpoint: Option<NavigationEndpoint>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]

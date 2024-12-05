@@ -203,7 +203,7 @@ pub async fn synchronize(
             };
             // HACK: takes into account discrepancy for YtMusic with no ISRC
             if dst_likes.contains(&song) {
-                debug!("discrepancy, song already in playlist: {}", song.name);
+                debug!("discrepancy, song already liked: {}", song.name);
                 continue;
             }
             new_likes.push(song);

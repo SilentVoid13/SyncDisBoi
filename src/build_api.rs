@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
@@ -22,11 +22,19 @@ macro_rules! impl_build_api {
             async fn parse(&self, args: &RootArgs, config_dir: &Path) -> Result<DynMusicApi> {
                 let api: DynMusicApi = match &self {
                     Self::YtMusic {
+                        /*
                         client_id,
                         client_secret,
                         clear_cache,
+                        */
+                        headers,
                         ..
                     } => {
+                        Box::new(
+                            YtMusicApi::new(headers, args.config.clone())
+                                .await?,
+                        )
+                        /*
                         let oauth_token_path = config_dir.join("ytmusic_oauth.json");
                         Box::new(
                             YtMusicApi::new(
@@ -38,6 +46,7 @@ macro_rules! impl_build_api {
                             )
                             .await?,
                         )
+                        */
                     }
                     Self::Tidal {
                         client_id,
@@ -62,12 +71,7 @@ macro_rules! impl_build_api {
                         client_secret,
                         ..
                     } => Box::new(
-                        SpotifyApi::new(
-                            &client_id,
-                            &client_secret,
-                            args.config.clone(),
-                        )
-                        .await?,
+                        SpotifyApi::new(&client_id, &client_secret, args.config.clone()).await?,
                     ),
                     #[allow(unreachable_patterns)]
                     _ => return Err(eyre!("Invalid API type: {:?}", self)),

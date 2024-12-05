@@ -10,6 +10,9 @@ use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, S
 #[derive(Deserialize, Serialize, Debug)]
 pub struct SearchSongs(pub Vec<Song>);
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct SearchSongUnique(pub Option<Song>);
+
 pub fn parse_duration(duration_str: &str) -> Result<usize> {
     let multipliers = [1, 60, 3600];
     let mut seconds = 0;
@@ -200,5 +203,88 @@ impl TryInto<SearchSongs> for YtMusicResponse {
 
         let songs = SearchSongs(songs_vec);
         Ok(songs)
+    }
+}
+
+impl TryInto<SearchSongUnique> for YtMusicResponse {
+    type Error = Error;
+
+    fn try_into(mut self) -> Result<SearchSongUnique, Self::Error> {
+        let card_shelf = match self.get_card_shelf() {
+            Some(x) => x,
+            None => return Ok(SearchSongUnique(None)),
+        };
+
+        let id = card_shelf.get_id().ok_or(eyre!("No song id"))?;
+        let name = card_shelf.get_name().ok_or(eyre!("No song name"))?;
+
+        // fc0 = song title
+        // fc1 = artists, album, duration
+
+        let mut album = None;
+        let mut artists: Vec<Artist> = vec![];
+        let mut duration = 0;
+        let re_duration = Regex::new(r"^(\d+:)*\d+:\d+$")?;
+
+        for run in card_shelf
+            .subtitle
+            .as_ref()
+            .ok_or(eyre!("no subtitle"))?
+            .runs
+            .as_ref()
+            .ok_or(eyre!("no subtitle.runs"))?
+            .iter()
+            .step_by(2)
+            .skip(1)
+        {
+            let text = run.get_text();
+
+            if let Some(nav) = &run.navigation_endpoint {
+                let id = nav
+                    .browse_endpoint
+                    .as_ref()
+                    .ok_or(eyre!("No browse endpoint"))?
+                    .browse_id
+                    .clone();
+                if id.starts_with("MPRE") {
+                    album = Some(Album {
+                        id: Some(id),
+                        name: text,
+                    });
+                } else {
+                    artists.push(Artist {
+                        id: Some(id),
+                        name: text,
+                    });
+                }
+            } else if re_duration.is_match(&text) {
+                duration = parse_duration(&text)?;
+            } else {
+                debug!("artist without id: {}", text);
+                artists.push(Artist {
+                    id: None,
+                    name: text,
+                });
+            }
+        }
+
+        // FIXME: it looks like album metadata is never present in search results
+        // maybe there's a way to get it?
+        //if album.is_none() || artists.is_empty() || duration == 0 {
+        //    debug!("skipping song with missing data: {}", name);
+        //    return Ok(SearchSongUnique(None));
+        //}
+
+        let song = Song {
+            source: MusicApiType::YtMusic,
+            id,
+            sid: None,
+            isrc: None,
+            name,
+            artists,
+            album,
+            duration_ms: duration,
+        };
+        Ok(SearchSongUnique(Some(song)))
     }
 }

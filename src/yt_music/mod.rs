@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
 use lazy_static::lazy_static;
 use model::{YtMusicAddLikeResponse, YtMusicOAuthDeviceRes};
-use reqwest::header::HeaderMap;
+use reqwest::header::{HeaderMap, HeaderName};
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use tracing::info;
@@ -21,14 +21,14 @@ use crate::music_api::{
     PLAYLIST_DESC,
 };
 use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse};
-use crate::yt_music::response::SearchSongs;
+use crate::yt_music::response::{SearchSongUnique, SearchSongs};
 use crate::ConfigArgs;
 
 lazy_static! {
     static ref CONTEXT: serde_json::Value = json!({
         "client": {
             "clientName": "WEB_REMIX",
-            "clientVersion": "1.20230901.01.00",
+            "clientVersion": "1.20241205.01.00",
             "hl": "en"
         },
         "user": {}
@@ -42,9 +42,12 @@ pub struct YtMusicApi {
 
 impl YtMusicApi {
     const BASE_API: &'static str = "https://music.youtube.com/youtubei/v1/";
-    const BASE_PARAMS: &'static str =
-        "?alt=json&prettyPrint=false&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
+    const BASE_PARAMS: &'static str = "?alt=json&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
 
+    // FIXME: Oauth is broken, probably forever
+    // https://github.com/sigma67/ytmusicapi/discussions/682
+    // https://github.com/yt-dlp/yt-dlp/issues/11462
+    /*
     const OAUTH_SCOPE: &'static str = "https://www.googleapis.com/auth/youtube";
     const OAUTH_CODE_URL: &'static str = "https://www.youtube.com/o/oauth2/device/code";
     const OAUTH_TOKEN_URL: &'static str = "https://oauth2.googleapis.com/token";
@@ -163,6 +166,35 @@ impl YtMusicApi {
         let token: OAuthToken = res.json().await?;
         Ok(token)
     }
+    */
+
+    pub async fn new(headers: &PathBuf, config: ConfigArgs) -> Result<Self> {
+        let header_json = std::fs::read_to_string(headers)?;
+        let header_json: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str(&header_json)?;
+        let mut headers = HeaderMap::new();
+        for (key, val) in header_json.into_iter() {
+            if let serde_json::Value::String(s) = val {
+                headers.insert(HeaderName::from_bytes(key.as_bytes())?, s.parse()?);
+            }
+        }
+        headers.remove("accept-encoding");
+        headers.remove("content-encoding");
+
+        let mut client = reqwest::ClientBuilder::new()
+            .cookie_store(true)
+            .default_headers(headers);
+
+        if let Some(proxy) = &config.proxy {
+            client = client
+                .proxy(reqwest::Proxy::all(proxy)?)
+                .danger_accept_invalid_certs(true)
+        }
+
+        let client = client.build().unwrap();
+
+        Ok(YtMusicApi { client, config })
+    }
 
     fn build_endpoint(&self, path: &str, ctoken: Option<&str>) -> String {
         let mut endpoint = format!("{}{}{}", Self::BASE_API, path, Self::BASE_PARAMS,);
@@ -210,12 +242,16 @@ impl YtMusicApi {
         let body = self.add_context(body);
         let endpoint = self.build_endpoint(path, ctoken);
         let res = self.client.post(endpoint).json(&body).send().await?;
-        let res = res.error_for_status()?;
         let obj = if self.config.debug {
+            let status = res.status();
             let text = res.text().await?;
             std::fs::write("debug/yt_music_last_res.json", &text)?;
+            if status.is_client_error() || status.is_server_error() {
+                return Err(eyre!("Error: {}", text));
+            }
             serde_json::from_str(&text)?
         } else {
+            let res = res.error_for_status()?;
             res.json().await?
         };
         Ok(obj)
@@ -277,16 +313,6 @@ impl MusicApi for YtMusicApi {
         let body = json!({ "browseId": browse_id });
         let response = self.paginated_request("browse", &body).await?;
         let songs: Songs = response.try_into()?;
-
-        /*
-        let body = json!({
-            "playbackContext": {"contentPlaybackContext": {"signatureTimestamp": "20008"}},
-            "video_id": "qV4rU7fzyx8",
-        });
-        let res: () = self.make_request("player", &body, None).await?;
-        todo!();
-        */
-
         Ok(songs.0)
     }
 
@@ -357,8 +383,6 @@ impl MusicApi for YtMusicApi {
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
-        let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
-
         if let Some(isrc) = &song.isrc {
             let body = json!({
                 "query": format!("\"{}\"", isrc),
@@ -366,11 +390,13 @@ impl MusicApi for YtMusicApi {
             let response = self
                 .make_request::<YtMusicResponse>("search", &body, None)
                 .await?;
-            let mut res_songs: SearchSongs = response.try_into()?;
-            if !res_songs.0.is_empty() {
-                return Ok(Some(res_songs.0.remove(0)));
+            let res_song: SearchSongUnique = response.try_into()?;
+            if let Some(mut res_song) = res_song.0 {
+                res_song.isrc = Some(isrc.to_string());
+                return Ok(Some(res_song));
             }
         } else {
+            let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
             let params = format!("EgWKAQ{}{}", "II", ignore_spelling);
             let mut queries = song.build_queries();
             while let Some(query) = queries.pop() {
@@ -413,7 +439,4 @@ impl MusicApi for YtMusicApi {
 }
 
 #[cfg(test)]
-mod tests {
-    #[tokio::test]
-    async fn test_ytmusic_to_spotify() {}
-}
+mod tests {}

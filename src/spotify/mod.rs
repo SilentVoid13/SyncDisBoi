@@ -477,7 +477,6 @@ mod tests {
             "3Eq7BJV1hGAiL8ctKoCrbD",
             "3F9ByoUqu31xU0I3G5xfVg",
         ];
-        dbg!(&songs);
         for (i, song) in songs.into_iter().enumerate() {
             if let Some(song) = song {
                 println!("Testing song: {}, id {}", song.name, song.id);

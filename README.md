@@ -39,18 +39,18 @@ A [Nix flake](https://github.com/SilentVoid13/SyncDisBoi/blob/master/flake.nix) 
 Here are some command examples:
 ```bash
 # sync from Youtube Music to Spotify
-./sync_dis_boi yt-music spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
+./sync_dis_boi yt-music --headers "./browser.json" spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
 # sync from Spotify to Tidal, sync likes as well
 ./sync_dis_boi --sync-likes spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" tidal
 # sync from Tidal to Youtube Music, like all synchronized songs
-./sync_dis_boi --like-all tidal yt-music
+./sync_dis_boi --like-all tidal yt-music --headers "./browser.json"
 # sync from Spotify to Youtube Music, with debug mode enabled to generate detailed statistics about the synchronization process
-./sync_dis_boi --debug spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" yt-music
+./sync_dis_boi --debug spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" yt-music --headers "./browser.json"
 
 # export Spotify playlists to JSON
-./sync_dis_boi spotify export -d ./spotify.json
+./sync_dis_boi spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" export -d ./spotify.json
 # export Youtube Music playlists to JSON
-./sync_dis_boi yt-music export -d ./yt_music.json
+./sync_dis_boi yt-music --headers "./browser.json" export -d ./yt_music.json
 # export Tidal playlists to JSON
 ./sync_dis_boi tidal export -d ./tidal.json
 ```
@@ -72,14 +72,13 @@ Notes:
 
 ### Youtube Music API setup
 
-- On the first run, SyncDisBoi will open up a browser tab to request OAuth access for your Youtube Account.
-- Authorize the application in your browser, then press ENTER in the CLI to continue.
+The OAuth access has been removed by Youtube. You should now log in using your browser cookies:
 
-The OAuth token will be cached in `~/.config/SyncDisBoi/ytmusic_oauth.json` (on Linux) for future use.
+- Follow [ytmusicapi's guide](https://ytmusicapi.readthedocs.io/en/stable/setup/browser.html) to generate a `browser.json` file.
+- Pass the `browser.json` file as an argument for SyncDisBoi
 
 Notes:
-- By default, SyncDisBoi uses the "Youtube for TV" application credentials to request OAuth access.
-- However, you can also create your own OAuth application, grant access to your account email, and then use it in SyncDisBoi by providing its client id and client secret.
+- You may have to refresh the cookies regularly as they can expire
 
 ### Tidal API setup
 
