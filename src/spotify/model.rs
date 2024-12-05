@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 #[derive(Deserialize, Debug)]
 pub struct SpotifyEmptyResponse {}
@@ -23,17 +23,28 @@ pub struct SpotifySearchResponse {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct SpotifyPageResponse<T> {
+pub struct SpotifyPageResponse<T: for<'d> Deserialize<'d>> {
+    #[serde(deserialize_with = "deserialize_non_null_vec")]
     pub items: Vec<T>,
     pub total: u32,
     pub next: Option<String>,
 }
-impl<T> SpotifyPageResponse<T> {
+
+impl<T: for<'d> Deserialize<'d>> SpotifyPageResponse<T> {
     pub fn merge(&mut self, other: Self) {
         self.items.extend(other.items);
         self.total += other.total;
         self.next = other.next;
     }
+}
+
+fn deserialize_non_null_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    let items: Vec<Option<T>> = Vec::deserialize(deserializer)?;
+    Ok(items.into_iter().flatten().collect())
 }
 
 #[derive(Deserialize, Debug)]

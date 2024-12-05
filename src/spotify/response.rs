@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 
 use color_eyre::eyre::{Error, Result};
+use serde::Deserialize;
 
 use super::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySearchResponse, SpotifySongItemResponse,
@@ -18,7 +19,7 @@ impl TryInto<Songs> for SpotifySearchResponse {
 
 impl<T> TryInto<Playlists> for SpotifyPageResponse<T>
 where
-    T: TryInto<Playlist, Error = Error>,
+    T: TryInto<Playlist, Error = Error> + for<'d> Deserialize<'d>,
 {
     type Error = Error;
 
@@ -33,7 +34,7 @@ where
 
 impl<T> TryInto<Songs> for SpotifyPageResponse<T>
 where
-    T: TryInto<Song, Error = Error>,
+    T: TryInto<Song, Error = Error> + for<'d> Deserialize<'d>,
 {
     type Error = Error;
 
