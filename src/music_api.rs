@@ -63,6 +63,7 @@ pub enum MusicApiType {
     Spotify,
     YtMusic,
     Tidal,
+    Deezer,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -93,7 +94,7 @@ pub struct Song {
 impl Song {
     pub fn clean_name(&self) -> String {
         match self.source {
-            MusicApiType::Spotify | MusicApiType::Tidal | MusicApiType::YtMusic => {
+            MusicApiType::Spotify | MusicApiType::Tidal | MusicApiType::YtMusic | MusicApiType::Deezer => {
                 let name = generic_name_clean(&self.name);
                 let name = name.split(" - ").next().unwrap_or(&name);
                 let name = name.split(" pts. ").next().unwrap_or(name);

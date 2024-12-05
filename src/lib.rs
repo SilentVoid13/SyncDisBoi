@@ -1,3 +1,4 @@
+pub mod deezer;
 pub mod export;
 pub mod music_api;
 pub mod spotify;
