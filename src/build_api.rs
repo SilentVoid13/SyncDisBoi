@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
@@ -22,31 +22,33 @@ macro_rules! impl_build_api {
             async fn parse(&self, args: &RootArgs, config_dir: &Path) -> Result<DynMusicApi> {
                 let api: DynMusicApi = match &self {
                     Self::YtMusic {
-                        /*
                         client_id,
                         client_secret,
                         clear_cache,
-                        */
                         headers,
                         ..
                     } => {
-                        Box::new(
-                            YtMusicApi::new(headers, args.config.clone())
+                        if let Some(headers) = headers {
+                            Box::new(YtMusicApi::new_headers(headers, args.config.clone()).await?)
+                        } else {
+                            let Some(client_id) = client_id else {
+                                return Err(eyre!("Missing Youtube Music client_id"));
+                            };
+                            let Some(client_secret) = client_secret else {
+                                return Err(eyre!("Missing Youtube Music client_secret"));
+                            };
+                            let oauth_token_path = config_dir.join("ytmusic_oauth.json");
+                            Box::new(
+                                YtMusicApi::new_oauth(
+                                    client_id,
+                                    client_secret,
+                                    oauth_token_path,
+                                    *clear_cache,
+                                    args.config.clone(),
+                                )
                                 .await?,
-                        )
-                        /*
-                        let oauth_token_path = config_dir.join("ytmusic_oauth.json");
-                        Box::new(
-                            YtMusicApi::new(
-                                client_id,
-                                client_secret,
-                                oauth_token_path,
-                                *clear_cache,
-                                args.config.clone(),
                             )
-                            .await?,
-                        )
-                        */
+                        }
                     }
                     Self::Tidal {
                         client_id,

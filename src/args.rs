@@ -25,26 +25,31 @@ pub enum MusicPlatformSrc {
     YtMusic {
         /// The path to the headers JSON file
         #[arg(short, long)]
-        headers: PathBuf,
-        /*
+        headers: Option<PathBuf>,
+        // FIXME: Android Auto Oauth is broken, probably forever
+        // https://github.com/sigma67/ytmusicapi/discussions/682
+        // https://github.com/yt-dlp/yt-dlp/issues/11462
         /// The client ID for the Youtube API application
         #[arg(
             long,
             env = "YTMUSIC_CLIENT_ID",
-            default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
+            conflicts_with = "headers",
+            requires = "client_secret"
+            //default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
         )]
-        client_id: String,
+        client_id: Option<String>,
+        /// The client secret for the Youtube API application
         #[arg(
             long,
             env = "YTMUSIC_CLIENT_SECRET",
-            default_value = "SboVhoG9s0rNafixCSGGKXAT"
+            conflicts_with = "headers",
+            requires = "client_secret"
+            //default_value = "SboVhoG9s0rNafixCSGGKXAT"
         )]
-        /// The client secret for the Youtube API application
-        client_secret: String,
+        client_secret: Option<String>,
         /// Clear the cached ytmusic_oauth.json file
-        #[arg(long)]
+        #[arg(long, requires = "client_id", requires = "client_secret")]
         clear_cache: bool,
-        */
         /// The destination music platform
         #[command(subcommand)]
         dst: MusicPlatformDst,
@@ -64,12 +69,12 @@ pub enum MusicPlatformSrc {
         /// The client ID for the Tidal API application
         #[arg(long, env = "TIDAL_CLIENT_ID", default_value = "zU4XHVVkc2tDPo4t")]
         client_id: String,
+        /// The client secret for the Tidal API application
         #[arg(
             long,
             env = "TIDAL_CLIENT_SECRET",
             default_value = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4="
         )]
-        /// The client secret for the Tidal API application
         client_secret: String,
         /// Clear the cached tidal_oauth.json file
         #[arg(long)]
@@ -88,26 +93,31 @@ pub enum MusicPlatformDst {
     YtMusic {
         /// The path to the headers JSON file
         #[arg(short, long)]
-        headers: PathBuf,
-        /*
+        headers: Option<PathBuf>,
+        // FIXME: Android Auto Oauth is broken, probably forever
+        // https://github.com/sigma67/ytmusicapi/discussions/682
+        // https://github.com/yt-dlp/yt-dlp/issues/11462
         /// The client ID for the Youtube API application
         #[arg(
             long,
             env = "YTMUSIC_CLIENT_ID",
-            default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
+            conflicts_with = "headers",
+            requires = "client_secret"
+            //default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
         )]
-        client_id: String,
+        client_id: Option<String>,
+        /// The client secret for the Youtube API application
         #[arg(
             long,
             env = "YTMUSIC_CLIENT_SECRET",
-            default_value = "SboVhoG9s0rNafixCSGGKXAT"
+            conflicts_with = "headers",
+            requires = "client_secret"
+            //default_value = "SboVhoG9s0rNafixCSGGKXAT"
         )]
-        /// The client secret for the Youtube API application
-        client_secret: String,
+        client_secret: Option<String>,
         /// Clear the cached ytmusic_oauth.json file
-        #[arg(long)]
+        #[arg(long, requires = "client_id", requires = "client_secret")]
         clear_cache: bool,
-        */
     },
     Spotify {
         /// The client ID for the Spotify API application
@@ -139,7 +149,7 @@ pub enum MusicPlatformDst {
         /// Minify the exported JSON file
         #[arg(long, default_value = "false")]
         minify: bool,
-    }
+    },
 }
 
 #[derive(ValueEnum, Clone, Debug)]

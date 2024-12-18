@@ -44,17 +44,13 @@ impl YtMusicApi {
     const BASE_API: &'static str = "https://music.youtube.com/youtubei/v1/";
     const BASE_PARAMS: &'static str = "?alt=json&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
 
-    // FIXME: Oauth is broken, probably forever
-    // https://github.com/sigma67/ytmusicapi/discussions/682
-    // https://github.com/yt-dlp/yt-dlp/issues/11462
-    /*
     const OAUTH_SCOPE: &'static str = "https://www.googleapis.com/auth/youtube";
     const OAUTH_CODE_URL: &'static str = "https://www.youtube.com/o/oauth2/device/code";
     const OAUTH_TOKEN_URL: &'static str = "https://oauth2.googleapis.com/token";
     const OAUTH_GRANT_TYPE: &'static str = "http://oauth.net/grant_type/device/1.0";
     const OAUTH_USER_AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0 Cobalt/Version";
 
-    pub async fn new(
+    pub async fn new_oauth(
         client_id: &str,
         client_secret: &str,
         oauth_token_path: PathBuf,
@@ -166,16 +162,18 @@ impl YtMusicApi {
         let token: OAuthToken = res.json().await?;
         Ok(token)
     }
-    */
 
-    pub async fn new(headers: &PathBuf, config: ConfigArgs) -> Result<Self> {
-        let header_json = std::fs::read_to_string(headers)?;
+    pub async fn new_headers(headers: &PathBuf, config: ConfigArgs) -> Result<Self> {
+        let header_data = std::fs::read_to_string(headers)?;
         let header_json: serde_json::Map<String, serde_json::Value> =
-            serde_json::from_str(&header_json)?;
+            serde_json::from_str(&header_data)?;
         let mut headers = HeaderMap::new();
         for (key, val) in header_json.into_iter() {
             if let serde_json::Value::String(s) = val {
-                headers.insert(HeaderName::from_bytes(key.as_bytes())?, s.parse()?);
+                headers.insert(
+                    HeaderName::from_bytes(key.to_lowercase().as_bytes())?,
+                    s.parse()?,
+                );
             }
         }
         headers.remove("accept-encoding");
@@ -241,7 +239,7 @@ impl YtMusicApi {
     {
         let body = self.add_context(body);
         let endpoint = self.build_endpoint(path, ctoken);
-        let res = self.client.post(endpoint).json(&body).send().await?;
+        let res = self.client.post(&endpoint).json(&body).send().await?;
         let obj = if self.config.debug {
             let status = res.status();
             let text = res.text().await?;

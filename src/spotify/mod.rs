@@ -442,11 +442,10 @@ mod tests {
         let yt_client_secret = env::var("YTMUSIC_CLIENT_SECRET").unwrap();
         let config_dir = dirs::config_dir().unwrap();
         let oauth_token_path = config_dir.join("SyncDisBoi").join("ytmusic_oauth.json");
-        let ytmusic = YtMusicApi::new(
+        let ytmusic = YtMusicApi::new_oauth(
             &yt_client_id,
             &yt_client_secret,
             oauth_token_path,
-            false,
             false,
             None,
         )
@@ -459,7 +458,7 @@ mod tests {
 
         let spotify_client_id = env::var("SPOTIFY_CLIENT_ID").unwrap();
         let spotify_secret = env::var("SPOTIFY_CLIENT_SECRET").unwrap();
-        let spotify = SpotifyApi::new(&spotify_client_id, &spotify_secret, false, None)
+        let spotify = SpotifyApi::new(&spotify_client_id, &spotify_secret, None)
             .await
             .unwrap();
 

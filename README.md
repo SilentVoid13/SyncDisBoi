@@ -1,4 +1,4 @@
-# SyncDisBoi
+# SyncDisBoi - Sync this boy!
 
 SyncDisBoi is a simple and efficient tool designed to synchronize playlists across different music streaming platforms. It currently supports:
 - [Youtube Music](https://music.youtube.com/)
@@ -39,18 +39,18 @@ A [Nix flake](https://github.com/SilentVoid13/SyncDisBoi/blob/master/flake.nix) 
 Here are some command examples:
 ```bash
 # sync from Youtube Music to Spotify
-./sync_dis_boi yt-music --headers "./browser.json" spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
+./sync_dis_boi yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
 # sync from Spotify to Tidal, sync likes as well
 ./sync_dis_boi --sync-likes spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" tidal
 # sync from Tidal to Youtube Music, like all synchronized songs
-./sync_dis_boi --like-all tidal yt-music --headers "./browser.json"
+./sync_dis_boi --like-all tidal yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
 # sync from Spotify to Youtube Music, with debug mode enabled to generate detailed statistics about the synchronization process
-./sync_dis_boi --debug spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" yt-music --headers "./browser.json"
+./sync_dis_boi --debug spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
 
 # export Spotify playlists to JSON
 ./sync_dis_boi spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" export -d ./spotify.json
 # export Youtube Music playlists to JSON
-./sync_dis_boi yt-music --headers "./browser.json" export -d ./yt_music.json
+./sync_dis_boi yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" export -d ./yt_music.json
 # export Tidal playlists to JSON
 ./sync_dis_boi tidal export -d ./tidal.json
 ```
@@ -72,20 +72,34 @@ Notes:
 
 ### Youtube Music API setup
 
-The OAuth access has been removed by Youtube. You should now log in using your browser cookies:
+The convenient OAuth "Android Auto" access has been removed by Youtube. You now have to create your own OAuth application:
+
+- Sign in at [https://console.developers.google.com/](https://console.developers.google.com/)
+- Create a new project
+- Select the project
+- Under "Enabled APIs & services" click "+ Enable APIs and services", select "Youtube Data API v3" and enable
+- Under "OAuth consent screen" create an "external" user type (fill in the app name, set the developer email as your own)
+- Add your own email for "Test users"
+- Under "Credentials" click "+ Create credentials" > OAuth client ID > Set "TVs and Limited Input devices" as the application type
+- Copy the Client ID and the Client secret
+
+You will then need to provide the client id and client secret as arguments for SyncDisBoi.
+After the first authorization, the OAuth token will be cached in `~/.config/SyncDisBoi/ytmusic_oauth.json` (on Linux) for future use.
+
+Alternatively, you can use request headers to login:
 
 - Follow [ytmusicapi's guide](https://ytmusicapi.readthedocs.io/en/stable/setup/browser.html) to generate a `browser.json` file.
 - Pass the `browser.json` file as an argument for SyncDisBoi
 
 Notes:
-- You may have to refresh the cookies regularly as they can expire
+- You may have to refresh the cookies regularly as they can expire very quickly
 
 ### Tidal API setup
 
 - On the first run, SyncDisBoi will open up a browser tab to request OAuth access for your Tidal Account.
 - Authorize the application in your browser, then press ENTER in the CLI to continue.
 
-The OAuth token will be cached in `~/.config/SyncDisBoi/tidal_oauth.json` (on Linux) for future use.
+After the first authorization, the OAuth token will be cached in `~/.config/SyncDisBoi/tidal_oauth.json` (on Linux) for future use.
 
 Notes:
 - By default, SyncDisBoi uses Tidal's "Android Auto" application credentials to request OAuth access.

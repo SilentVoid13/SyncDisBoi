@@ -133,6 +133,8 @@ impl TryInto<SearchSongs> for YtMusicResponse {
             None => return Ok(SearchSongs(songs_vec)),
         };
 
+        let re_duration = Regex::new(r"^(\d+:)*\d+:\d+$")?;
+
         for mrlir in mrlirs
             .iter()
             .filter(|item| item.playlist_item_data.is_some())
@@ -146,7 +148,6 @@ impl TryInto<SearchSongs> for YtMusicResponse {
             let mut album = None;
             let mut artists: Vec<Artist> = vec![];
             let mut duration = 0;
-            let re_duration = Regex::new(r"^(\d+:)*\d+:\d+$")?;
 
             for run in mrlir
                 .get_col_runs(1, true)
