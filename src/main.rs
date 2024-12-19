@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
     match args.src.get_dst() {
         MusicPlatformDst::Export { dest, minify } => {
             export(src_api, dest, *minify).await?;
-        },
+        }
         _ => {
             let dst_api = args.src.get_dst().parse(&args, &config_dir).await?;
             synchronize(src_api, dst_api, args.config).await?;

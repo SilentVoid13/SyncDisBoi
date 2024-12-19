@@ -40,7 +40,9 @@ impl YtMusicResponse {
     }
 
     pub fn get_card_shelf(&mut self) -> Option<&mut MusicCardShelfRenderer> {
-        self.get_section_renderer_content()?.music_card_shelf_renderer.as_mut()
+        self.get_section_renderer_content()?
+            .music_card_shelf_renderer
+            .as_mut()
     }
 
     pub fn get_mrlirs(&mut self) -> Option<Vec<&MusicResponsiveListItemRenderer>> {
@@ -78,7 +80,8 @@ impl YtMusicResponse {
 
     pub fn get_section_renderer_content(&mut self) -> Option<&mut SectionRendererContent> {
         if let Some(sr) = self.contents.single_column_browse_results_renderer.as_mut() {
-            sr.tabs[0]
+            sr.tabs
+                .first_mut()?
                 .tab_renderer
                 .content
                 .section_list_renderer
@@ -89,7 +92,8 @@ impl YtMusicResponse {
                     item.music_playlist_shelf_renderer.is_some() || item.grid_renderer.is_some()
                 })
         } else if let Some(tr) = self.contents.tabbed_search_results_renderer.as_mut() {
-            tr.tabs[0]
+            tr.tabs
+                .first_mut()?
                 .tab_renderer
                 .content
                 .section_list_renderer
@@ -164,12 +168,11 @@ pub struct ResponseContent {
 #[serde(rename_all = "camelCase")]
 pub struct TwoColumnBrowseResultsRenderer {
     pub secondary_contents: TabRendererContent,
-    pub tabs: [Tab; 1],
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SingleColumnBrowseResultsRenderer {
-    pub tabs: [Tab; 1],
+    pub tabs: Vec<Tab>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -273,7 +276,6 @@ impl MusicResponsiveListItemRenderer {
 }
 
 pub type MusicCardShelfRenderer = MusicTwoRowItemRenderer;
-
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
