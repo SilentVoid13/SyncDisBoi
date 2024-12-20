@@ -1,7 +1,8 @@
-mod model;
+pub mod model;
 mod response;
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use async_recursion::async_recursion;
@@ -19,7 +20,8 @@ use self::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySnapshotResponse, SpotifySongItemResponse,
 };
 use crate::music_api::{
-    MusicApi, MusicApiType, OAuthToken, Playlist, Playlists, Song, Songs, PLAYLIST_DESC,
+    MusicApi, MusicApiType, OAuthRefreshToken, OAuthToken, Playlist, Playlists, Song, Songs,
+    PLAYLIST_DESC,
 };
 use crate::spotify::model::SpotifySearchResponse;
 use crate::ConfigArgs;
@@ -42,6 +44,7 @@ impl SpotifyApi {
     const BASE_API: &'static str = "https://api.spotify.com/v1";
     const REDIRECT_URI_HOST: &'static str = "localhost:8888";
     const REDIRECT_URI_URL: &'static str = "http://localhost:8888/callback";
+    const TOKEN_URL: &'static str = "https://accounts.spotify.com/api/token";
     const SCOPES: &'static [&'static str] = &[
         "user-read-email",
         "user-read-private",
@@ -53,24 +56,22 @@ impl SpotifyApi {
         "playlist-modify-private",
     ];
 
-    pub async fn new(client_id: &str, client_secret: &str, config: ConfigArgs) -> Result<Self> {
-        let auth_url = SpotifyApi::build_authorization_url(client_id)?;
-        let auth_code = SpotifyApi::listen_for_code(&auth_url).await?;
-
-        let mut params = HashMap::new();
-        params.insert("grant_type", "authorization_code");
-        params.insert("code", &auth_code);
-        params.insert("redirect_uri", SpotifyApi::REDIRECT_URI_URL);
-
-        let client = reqwest::Client::new();
-        let res = client
-            .post("https://accounts.spotify.com/api/token")
-            .basic_auth(client_id, Some(client_secret))
-            .form(&params)
-            .send()
-            .await?;
-        let res = res.error_for_status()?;
-        let token: OAuthToken = res.json().await?;
+    pub async fn new(
+        client_id: &str,
+        client_secret: &str,
+        oauth_token_path: PathBuf,
+        clear_cache: bool,
+        config: ConfigArgs,
+    ) -> Result<Self> {
+        let token = if !oauth_token_path.exists() || clear_cache {
+            Self::request_token(client_id, client_secret).await?
+        } else {
+            info!("refreshing token");
+            Self::refresh_token(client_id, client_secret, &oauth_token_path).await?
+        };
+        // Write new token
+        let mut file = std::fs::File::create(&oauth_token_path)?;
+        serde_json::to_writer(&mut file, &token)?;
 
         let bearer = format!("Bearer {}", token.access_token);
         let mut headers = HeaderMap::new();
@@ -100,6 +101,51 @@ impl SpotifyApi {
             config,
             country_code,
         })
+    }
+
+    async fn request_token(client_id: &str, client_secret: &str) -> Result<OAuthToken> {
+        let auth_url = SpotifyApi::build_authorization_url(client_id)?;
+        let auth_code = SpotifyApi::listen_for_code(&auth_url).await?;
+
+        let mut params = HashMap::new();
+        params.insert("grant_type", "authorization_code");
+        params.insert("code", &auth_code);
+        params.insert("redirect_uri", Self::REDIRECT_URI_URL);
+
+        let client = reqwest::Client::new();
+        let res = client
+            .post(Self::TOKEN_URL)
+            .basic_auth(client_id, Some(client_secret))
+            .form(&params)
+            .send()
+            .await?;
+        let res = res.error_for_status()?;
+        let token: OAuthToken = res.json().await?;
+        Ok(token)
+    }
+
+    async fn refresh_token(
+        client_id: &str,
+        client_secret: &str,
+        oauth_token_path: &PathBuf,
+    ) -> Result<OAuthToken> {
+        let client = reqwest::Client::new();
+        let reader = std::fs::File::open(oauth_token_path)?;
+        let mut oauth_token: OAuthToken = serde_json::from_reader(reader)?;
+
+        let params = json!({
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "grant_type": "refresh_token",
+            "refresh_token": &oauth_token.refresh_token,
+        });
+        let res = client.post(Self::TOKEN_URL).form(&params).send().await?;
+        let res = res.error_for_status()?;
+        let refresh_token: OAuthRefreshToken = res.json().await?;
+        oauth_token.access_token = refresh_token.access_token;
+        oauth_token.expires_in = refresh_token.expires_in;
+        oauth_token.scope = refresh_token.scope;
+        Ok(oauth_token)
     }
 
     fn build_authorization_url(client_id: &str) -> Result<String> {

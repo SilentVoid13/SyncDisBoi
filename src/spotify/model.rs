@@ -84,7 +84,7 @@ pub struct SpotifyAlbumResponse {
 
 #[derive(Deserialize, Debug)]
 pub struct SpotifyExternalIdsResponse {
-    pub isrc: String,
+    pub isrc: Option<String>,
     #[allow(dead_code)]
     pub upc: Option<String>,
 }

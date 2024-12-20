@@ -71,10 +71,21 @@ macro_rules! impl_build_api {
                     Self::Spotify {
                         client_id,
                         client_secret,
+                        clear_cache,
                         ..
-                    } => Box::new(
-                        SpotifyApi::new(&client_id, &client_secret, args.config.clone()).await?,
-                    ),
+                    } => {
+                        let oauth_token_path = config_dir.join("spotify_oauth.json");
+                        Box::new(
+                            SpotifyApi::new(
+                                &client_id,
+                                &client_secret,
+                                oauth_token_path,
+                                *clear_cache,
+                                args.config.clone(),
+                            )
+                            .await?,
+                        )
+                    }
                     #[allow(unreachable_patterns)]
                     _ => return Err(eyre!("Invalid API type: {:?}", self)),
                 };

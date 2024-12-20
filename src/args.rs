@@ -61,6 +61,9 @@ pub enum MusicPlatformSrc {
         /// The client secret for the Spotify API application
         #[arg(long, env = "SPOTIFY_CLIENT_SECRET")]
         client_secret: String,
+        /// Clear the cached spotify_oauth.json file
+        #[arg(long)]
+        clear_cache: bool,
         /// The destination music platform
         #[command(subcommand)]
         dst: MusicPlatformDst,
@@ -126,6 +129,9 @@ pub enum MusicPlatformDst {
         /// The client secret for the Spotify API application
         #[arg(long, env = "SPOTIFY_CLIENT_SECRET")]
         client_secret: String,
+        /// Clear the cached spotify_oauth.json file
+        #[arg(long)]
+        clear_cache: bool,
     },
     Tidal {
         /// The client ID for the Tidal API application

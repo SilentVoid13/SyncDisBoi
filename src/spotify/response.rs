@@ -2,6 +2,7 @@ use std::convert::TryInto;
 
 use color_eyre::eyre::{Error, Result};
 use serde::Deserialize;
+use tracing::debug;
 
 use super::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySearchResponse, SpotifySongItemResponse,
@@ -41,7 +42,13 @@ where
     fn try_into(self) -> Result<Songs, Self::Error> {
         let mut res = vec![];
         for item in self.items.into_iter() {
-            res.push(item.try_into()?);
+            let song = item.try_into()?;
+            // either an invalid or delete song
+            if song.duration_ms == 0 || song.isrc.is_none() {
+                debug!("song with invalid metadata, skipping it: {:?}", song);
+                continue;
+            }
+            res.push(song);
         }
         Ok(Songs(res))
     }
@@ -84,15 +91,17 @@ impl TryInto<Song> for SpotifySongResponse {
             name: self.album.name,
         };
 
-        let isrc = self.external_ids.isrc.to_uppercase();
-        // the metadata is sometimes inconsistent
-        let isrc = isrc.replace("-", "");
+        let isrc = self.external_ids.isrc.map(|isrc| {
+            // the metadata is sometimes inconsistent
+            let isrc = isrc.to_uppercase();
+            isrc.replace("-", "")
+        });
 
         Ok(Song {
             source: MusicApiType::Spotify,
             id: self.id,
             sid: None,
-            isrc: Some(isrc),
+            isrc,
             name: self.name,
             album: Some(album),
             artists,

@@ -408,8 +408,9 @@ impl MusicApi for TidalApi {
         let params = json!({
             "countryCode": self.country_code,
         });
-        let res: TidalPageResponse<TidalSongItemResponse> =
-            self.paginated_request(&url, &HttpMethod::Get(&params), 100).await?;
+        let res: TidalPageResponse<TidalSongItemResponse> = self
+            .paginated_request(&url, &HttpMethod::Get(&params), 100)
+            .await?;
         let songs: Songs = res.try_into()?;
         Ok(songs.0)
     }

@@ -30,7 +30,15 @@ pub fn clean_enclosure(name: &str, start_tag: char, end_tag: char) -> String {
 
 pub fn generic_name_clean(name: &str) -> String {
     let mut name = name.to_lowercase();
-    let replaces = [("'", ""), ("\"", ""), (":", " ")];
+    let replaces = [
+        ("'", ""),
+        ("\"", ""),
+        (":", " "),
+        ("%", ""),
+        ("é", "e"),
+        ("è", "e"),
+        ("à", "a"),
+    ];
     for (a, b) in replaces.iter() {
         name = name.replace(a, b);
     }
