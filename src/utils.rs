@@ -1,5 +1,7 @@
 use regex::Regex;
 
+use crate::music_api::Song;
+
 pub fn clean_enclosure(name: &str, start_tag: char, end_tag: char) -> String {
     if name.contains(start_tag) {
         let mut res = vec![];
@@ -49,6 +51,23 @@ pub fn generic_name_clean(name: &str) -> String {
     let name = clean_enclosure(&name, '(', ')');
     let name = clean_enclosure(&name, '[', ']');
     name.trim_end().to_string()
+}
+
+pub fn dedup_songs(songs: &mut Vec<Song>) -> bool {
+    let mut seen = std::collections::HashSet::new();
+    let mut dups = false;
+    let mut i = 0;
+    let mut len = songs.len();
+    while i < len {
+        if !seen.insert(songs[i].id.clone()) {
+            songs.remove(i);
+            dups = true;
+            len -= 1;
+        } else {
+            i += 1;
+        }
+    }
+    dups
 }
 
 #[cfg(test)]

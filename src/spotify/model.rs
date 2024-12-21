@@ -57,7 +57,7 @@ pub struct SpotifyPlaylistResponse {
 
 #[derive(Deserialize, Debug)]
 pub struct SpotifySongItemResponse {
-    pub track: SpotifySongResponse,
+    pub track: Option<SpotifySongResponse>,
 }
 
 #[derive(Deserialize, Debug)]

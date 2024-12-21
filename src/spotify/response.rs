@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use color_eyre::eyre::{Error, Result};
+use color_eyre::eyre::{Error, OptionExt, Result};
 use serde::Deserialize;
 use tracing::{debug, error};
 
@@ -60,7 +60,7 @@ where
             };
             // either an invalid or deleted song
             if song.id.is_empty() || song.duration_ms == 0 || song.isrc.is_none() {
-                debug!("song with invalid metadata, skipping it: {}", song.name);
+                debug!("song with invalid metadata, skipping it: '{}'", song.name);
                 continue;
             }
             res.push(song);
@@ -87,7 +87,7 @@ impl TryInto<Song> for SpotifySongItemResponse {
     type Error = Error;
 
     fn try_into(self) -> Result<Song, Self::Error> {
-        self.track.try_into()
+        self.track.ok_or_eyre("null track metadata")?.try_into()
     }
 }
 

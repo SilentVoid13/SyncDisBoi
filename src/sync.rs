@@ -3,6 +3,7 @@ use serde_json::json;
 use tracing::{debug, info, warn};
 
 use crate::music_api::{DynMusicApi, MusicApiType, Song};
+use crate::utils::dedup_songs;
 use crate::ConfigArgs;
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
@@ -50,8 +51,8 @@ pub async fn synchronize(
     let mut no_albums = json!({});
     let mut stats = json!({});
 
-    for src_playlist in src_playlists
-        .iter()
+    for mut src_playlist in src_playlists
+        .into_iter()
         .filter(|p| !SKIPPED_PLAYLISTS.contains(&p.name.as_str()) && !p.songs.is_empty())
     {
         if src_playlist.songs.is_empty() {
@@ -72,6 +73,13 @@ pub async fn synchronize(
         let mut dst_songs = vec![];
         let mut success = 0;
         let mut attempts = 0;
+
+        if dedup_songs(&mut src_playlist.songs) {
+            warn!(
+                "duplicates found in source playlist \"{}\", they will be skipped",
+                src_playlist.name
+            );
+        }
 
         info!("synchronizing playlist \"{}\" ...", src_playlist.name);
         for src_song in src_playlist.songs.iter() {
@@ -105,7 +113,16 @@ pub async fn synchronize(
             };
             // HACK: takes into account discrepancy for YtMusic with no ISRC
             if dst_playlist.songs.contains(&dst_song) {
-                debug!("discrepancy, song already in playlist: {}", dst_song.name);
+                debug!(
+                    "discrepancy, song already in destination playlist: {}",
+                    dst_song.name
+                );
+                continue;
+            }
+            // Edge case: same song on different album/single that all resolve to the same
+            // song on the destination platform
+            if dst_songs.contains(&dst_song) {
+                debug!("song already in dst_songs: {}", dst_song.name);
                 continue;
             }
 
