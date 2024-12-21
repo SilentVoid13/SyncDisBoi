@@ -55,6 +55,7 @@ impl SpotifyApi {
         "playlist-read-private",
         "playlist-modify-private",
     ];
+    const LISTEN_RESPONSE: &'static str = "HTTP/1.1 200 OK\r\nContent-Length: 56\r\n\r\nAuthorization code received! You may now close this tab.";
 
     pub async fn new(
         client_id: &str,
@@ -185,6 +186,9 @@ impl SpotifyApi {
             .ok_or(eyre!("Spotify server returned no autorization code"))?
             .1
             .to_string();
+
+        socket.writable().await?;
+        socket.try_write(Self::LISTEN_RESPONSE.as_bytes())?;
 
         Ok(auth_code)
     }

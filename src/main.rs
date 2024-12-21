@@ -16,7 +16,19 @@ use tracing_subscriber::prelude::*;
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
+    // CLI arguments
     let args = RootArgs::parse();
+    // Setup logging
+    const CRATE_NAME: &str = env!("CARGO_PKG_NAME");
+    let level: Level = args.logging.clone().into();
+    let filter = Targets::new().with_target(CRATE_NAME, Level::TRACE);
+    tracing_subscriber::fmt()
+        .with_max_level(level)
+        .with_target(true)
+        .finish()
+        .with(filter)
+        .init();
+    debug!("logging level: {}", level);
 
     let config_dir = dirs::config_dir().ok_or(eyre!("couldn't find system config dir"))?;
     let config_dir = config_dir.join("SyncDisBoi");
@@ -32,18 +44,6 @@ async fn main() -> Result<()> {
             std::fs::create_dir("debug")?;
         }
     }
-
-    // Setup logging
-    const CRATE_NAME: &str = env!("CARGO_PKG_NAME");
-    let level: Level = args.logging.clone().into();
-    let filter = Targets::new().with_target(CRATE_NAME, Level::TRACE);
-    tracing_subscriber::fmt()
-        .with_max_level(level)
-        .with_target(true)
-        .finish()
-        .with(filter)
-        .init();
-    debug!("logging level: {}", level);
 
     let src_api = args.src.parse(&args, &config_dir).await?;
     match args.src.get_dst() {

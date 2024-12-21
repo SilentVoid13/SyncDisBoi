@@ -2,13 +2,15 @@ use std::convert::TryInto;
 
 use color_eyre::eyre::{Error, Result};
 use serde::Deserialize;
-use tracing::debug;
+use tracing::{debug, error};
 
 use super::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySearchResponse, SpotifySongItemResponse,
     SpotifySongResponse,
 };
 use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
+
+// multiples
 
 impl TryInto<Songs> for SpotifySearchResponse {
     type Error = Error;
@@ -27,7 +29,14 @@ where
     fn try_into(self) -> Result<Playlists, Self::Error> {
         let mut res = vec![];
         for item in self.items.into_iter() {
-            res.push(item.try_into()?);
+            let playlist = match item.try_into() {
+                Ok(p) => p,
+                Err(e) => {
+                    error!("failed to parse playlist in response, skipping it: {}", e);
+                    continue;
+                }
+            };
+            res.push(playlist);
         }
         Ok(Playlists(res))
     }
@@ -35,17 +44,23 @@ where
 
 impl<T> TryInto<Songs> for SpotifyPageResponse<T>
 where
-    T: TryInto<Song, Error = Error> + for<'d> Deserialize<'d>,
+    T: TryInto<Song, Error = Error> + for<'d> Deserialize<'d> + std::fmt::Debug,
 {
     type Error = Error;
 
     fn try_into(self) -> Result<Songs, Self::Error> {
         let mut res = vec![];
         for item in self.items.into_iter() {
-            let song = item.try_into()?;
-            // either an invalid or delete song
-            if song.duration_ms == 0 || song.isrc.is_none() {
-                debug!("song with invalid metadata, skipping it: {:?}", song);
+            let song = match item.try_into() {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("failed to parse song in response, skipping it: {}", e);
+                    continue;
+                }
+            };
+            // either an invalid or deleted song
+            if song.id.is_empty() || song.duration_ms == 0 || song.isrc.is_none() {
+                debug!("song with invalid metadata, skipping it: {}", song.name);
                 continue;
             }
             res.push(song);
@@ -53,6 +68,8 @@ where
         Ok(Songs(res))
     }
 }
+
+// singles
 
 impl TryInto<Playlist> for SpotifyPlaylistResponse {
     type Error = Error;
@@ -78,16 +95,25 @@ impl TryInto<Song> for SpotifySongResponse {
     type Error = Error;
 
     fn try_into(self) -> Result<Song, Self::Error> {
+        // not a huge fan of this error handling, but it's convenient for generics over
+        // SpotifyPageResponse
+        let id = if let Some(id) = self.id {
+            id
+        } else {
+            "".to_string()
+        };
+
         let artists = self
             .artists
             .into_iter()
+            .filter(|a| a.id.is_some())
             .map(|i| Artist {
-                id: Some(i.id),
+                id: Some(i.id.unwrap()),
                 name: i.name,
             })
             .collect();
         let album = Album {
-            id: Some(self.album.id),
+            id: self.album.id,
             name: self.album.name,
         };
 
@@ -99,7 +125,7 @@ impl TryInto<Song> for SpotifySongResponse {
 
         Ok(Song {
             source: MusicApiType::Spotify,
-            id: self.id,
+            id,
             sid: None,
             isrc,
             name: self.name,

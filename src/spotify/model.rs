@@ -62,7 +62,8 @@ pub struct SpotifySongItemResponse {
 
 #[derive(Deserialize, Debug)]
 pub struct SpotifySongResponse {
-    pub id: String,
+    // id can be null if the song is a local import
+    pub id: Option<String>,
     pub name: String,
     pub duration_ms: usize,
     pub artists: Vec<SpotifyArtistResponse>,
@@ -72,18 +73,21 @@ pub struct SpotifySongResponse {
 
 #[derive(Deserialize, Debug)]
 pub struct SpotifyArtistResponse {
-    pub id: String,
+    // id can be null if the song is a local import
+    pub id: Option<String>,
     pub name: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct SpotifyAlbumResponse {
-    pub id: String,
+    // id can be null if the song is a local import
+    pub id: Option<String>,
     pub name: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct SpotifyExternalIdsResponse {
+    // isrc can be null if the song is now deleted/unavailable
     pub isrc: Option<String>,
     #[allow(dead_code)]
     pub upc: Option<String>,
