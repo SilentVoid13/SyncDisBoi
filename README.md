@@ -22,7 +22,8 @@ Note that YouTube Music is not ideal for this role due to its limited and often 
 SyncDisBoi synchronization workflow goes like this:
 - if the destination playlist does not exist, SyncDisBoi will create a new playlist containing the synchronized songs
 - if the destination playlist already exists, SyncDisBoi will only add songs that are not already present
-- if the `--sync-likes` option is specified, SyncDisBoi will include liked songs in the synchronization process
+- if the `--sync-likes` option is specified, SyncDisBoi will also synchronize likes
+- if the `--like-all` option is specified, SyncDisBoi will like all synchonized songs on the destination platform
 
 By default, SyncDisBoi does not remove songs. This is a safety measure to prevent accidental data loss.
 Consequently, deleting a song on the source platform and syncing will not remove it from the destination playlist.
@@ -54,20 +55,39 @@ A [Nix flake](https://github.com/SilentVoid13/SyncDisBoi/blob/master/flake.nix) 
 Here are some command examples:
 ```bash
 # sync from Youtube Music to Spotify
-./sync_dis_boi yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
+./sync_dis_boi \
+    yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
+    spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
+
 # sync from Spotify to Tidal, sync likes as well
-./sync_dis_boi --sync-likes spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" tidal
+./sync_dis_boi --sync-likes \
+    spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
+    tidal
+
 # sync from Tidal to Youtube Music, like all synchronized songs
-./sync_dis_boi --like-all tidal yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
+./sync_dis_boi --like-all \
+    tidal \
+    yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
+
 # sync from Spotify to Youtube Music, with debug mode enabled to generate detailed statistics about the synchronization process
-./sync_dis_boi --debug spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
+./sync_dis_boi --debug \
+    spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
+    yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
 
 # export Spotify playlists to JSON
-./sync_dis_boi spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" export -d ./spotify.json
+./sync_dis_boi \
+    spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
+    export -d ./spotify.json
+
 # export Youtube Music playlists to JSON
-./sync_dis_boi yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" export -d ./yt_music.json
+./sync_dis_boi \
+    yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
+    export -d ./yt_music.json
+
 # export Tidal playlists to JSON
-./sync_dis_boi tidal export -d ./tidal.json
+./sync_dis_boi \
+    tidal \
+    export -d ./tidal.json
 ```
 
 To use SyncDisBoi, you need to set up account access for the API of the corresponding music platform.
@@ -79,9 +99,10 @@ To use SyncDisBoi, you need to set up account access for the API of the correspo
 - Copy the application client id and client secret.
 
 You will then need to provide the client id and client secret as arguments for SyncDisBoi.
+After the first authorization, the OAuth token will be cached in `~/.config/SyncDisBoi/spotify_oauth.json` (on Linux) for future use.
 
 Notes:
-- After authorizing access for your Spotify account, SyncDisBoi will open the 'http://localhost:8888/callback' URL in your browser. If you get 'Unable to connect' this is normal as the server is quickly opened and shutdown once it receives the auth code.
+- After authorizing access for your Spotify account, SyncDisBoi will open the 'http://localhost:8888/callback' URL in your browser. If you get an 'Unable to connect' response this is normal as the server is quickly opened and shutdown once it receives the auth code.
 
 ### Youtube Music API setup
 
