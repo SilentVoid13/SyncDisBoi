@@ -96,6 +96,8 @@ pub struct TidalMediaResponse {
 pub struct TidalMediaData {
     pub id: String,
     pub attributes: TidalMediaAttributes,
+    pub relationships: TidalMediaRelationships,
+    #[allow(dead_code)]
     #[serde(rename = "type")]
     pub typ: String,
 }
@@ -109,9 +111,29 @@ pub struct TidalMediaAttributes {
     pub name: Option<String>,
     pub duration: Option<String>,
     pub barcode_id: Option<String>,
+    pub popularity: Option<f32>,
 
     // user attributes
     pub username: Option<String>,
     pub country: Option<String>,
     pub email: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TidalMediaRelationships {
+    pub artists: Option<TidalMediaRelationship>,
+    pub albums: Option<TidalMediaRelationship>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TidalMediaRelationship {
+    pub data: Option<Vec<TidalMediaRelationshipData>>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TidalMediaRelationshipData {
+    pub id: String,
+    #[allow(dead_code)]
+    #[serde(rename = "type")]
+    pub typ: String,
 }

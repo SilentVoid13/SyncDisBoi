@@ -342,13 +342,16 @@ impl MusicApi for TidalApi {
                 "filter[isrc]": isrc.to_uppercase(),
             });
             let res: TidalMediaResponse = self
-                .make_request_json(&url, &HttpMethod::Get(&params), 0, 3)
+                .make_request_json(&url, &HttpMethod::Get(&params), 0, 1)
                 .await?;
             if res.data.is_empty() {
                 return Ok(None);
             }
-            let res_song: Song = res.try_into()?;
-            return Ok(Some(res_song));
+            let mut res_songs: Songs = res.try_into()?;
+            if res_songs.0.is_empty() {
+                return Ok(None);
+            }
+            return Ok(Some(res_songs.0.remove(0)));
         }
 
         let url = format!("{}/v1/search", Self::API_URL);
