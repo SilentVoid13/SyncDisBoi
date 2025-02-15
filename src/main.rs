@@ -18,6 +18,7 @@ async fn main() -> Result<()> {
     color_eyre::install()?;
     // CLI arguments
     let args = RootArgs::parse();
+
     // Setup logging
     const CRATE_NAME: &str = env!("CARGO_PKG_NAME");
     let level: Level = args.logging.clone().into();

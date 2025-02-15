@@ -11,7 +11,6 @@ color-eyre = "0.6.2"
 dirs = "5.0.1"
 futures = "0.3.24"
 iso8601 = "0.6.1"
-lazy_static = "1.4.0"
 regex = "1.8.3"
 reqwest = { version = "0.11.11", features = ["cookies", "json"] }
 serde = { version = "1.0.144", features = ["derive"] }

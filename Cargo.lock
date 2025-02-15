@@ -1479,7 +1479,6 @@ dependencies = [
  "dirs",
  "futures",
  "iso8601",
- "lazy_static",
  "regex",
  "reqwest",
  "serde",

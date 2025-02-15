@@ -60,7 +60,7 @@ where
             };
             // either an invalid or deleted song
             if song.id.is_empty() || song.duration_ms == 0 || song.isrc.is_none() {
-                debug!("song with invalid metadata, skipping it: '{}'", song.name);
+                debug!("song with invalid metadata, skipping it: '{}'", song);
                 continue;
             }
             res.push(song);

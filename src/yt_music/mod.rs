@@ -5,10 +5,10 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use async_trait::async_trait;
 use color_eyre::eyre::{eyre, Result};
-use lazy_static::lazy_static;
 use model::{YtMusicAddLikeResponse, YtMusicOAuthDeviceRes};
 use reqwest::header::{HeaderMap, HeaderName};
 use serde::de::DeserializeOwned;
@@ -24,16 +24,16 @@ use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDelet
 use crate::yt_music::response::{SearchSongUnique, SearchSongs};
 use crate::ConfigArgs;
 
-lazy_static! {
-    static ref CONTEXT: serde_json::Value = json!({
+static CONTEXT: LazyLock<serde_json::Value> = LazyLock::new(|| {
+    json!({
         "client": {
             "clientName": "WEB_REMIX",
             "clientVersion": "1.20241205.01.00",
             "hl": "en"
         },
         "user": {}
-    });
-}
+    })
+});
 
 pub struct YtMusicApi {
     client: reqwest::Client,

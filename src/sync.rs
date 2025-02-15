@@ -82,15 +82,18 @@ pub async fn synchronize(
         }
 
         info!("synchronizing playlist \"{}\" ...", src_playlist.name);
+
+        // 1. Search for each song in the destination playlist
         for src_song in src_playlist.songs.iter() {
+            // already in destination playlist
             if dst_playlist.songs.contains(src_song) {
                 continue;
             }
-
+            // no album metadata == youtube video
             if src_song.album.is_none() {
                 warn!(
                     "No album metadata for source song \"{}\", skipping",
-                    src_song.name
+                    src_song
                 );
                 if config.debug {
                     no_albums_songs
@@ -105,39 +108,49 @@ pub async fn synchronize(
 
             let dst_song = dst_api.search_song(src_song).await?;
             let Some(dst_song) = dst_song else {
-                debug!("no match found for song: {}", src_song.name);
+                debug!("no match found for song: {}", src_song);
                 if config.debug {
                     missing_songs.as_array_mut().unwrap().push(json!(src_song));
                 }
                 continue;
             };
-            // HACK: takes into account discrepancy for YtMusic with no ISRC
-            if dst_playlist.songs.contains(&dst_song) {
-                debug!(
-                    "discrepancy, song already in destination playlist: {}",
-                    dst_song.name
-                );
-                continue;
-            }
-            // Edge case: same song on different album/single that all resolve to the same
-            // song on the destination platform
-            if dst_songs.contains(&dst_song) {
-                debug!("song already in dst_songs: {}", dst_song.name);
-                continue;
-            }
-
-            if config.debug {
-                new_songs.as_array_mut().unwrap().push(json!(dst_song));
-            }
             dst_songs.push(dst_song);
             success += 1;
         }
+
+        // 2. Add missing songs to the destination playlist
         if !dst_songs.is_empty() {
+            let mut to_sync = Vec::new();
+            for dst_song in dst_songs.iter() {
+                // HACK: takes into account discrepancy for YtMusic with no ISRC
+                if dst_playlist.songs.contains(dst_song) {
+                    debug!(
+                        "discrepancy, song already in destination playlist: {}",
+                        dst_song
+                    );
+                    continue;
+                }
+                // Edge case: same song on different album/single that all resolve to the same
+                // song on the destination platform resulting in duplicates
+                if to_sync.contains(dst_song) {
+                    debug!(
+                        "discrepancy, duplicate song in songs to synchronize: {}",
+                        dst_song
+                    );
+                    continue;
+                }
+                if config.debug {
+                    new_songs.as_array_mut().unwrap().push(json!(dst_song));
+                }
+                to_sync.push(dst_song.clone());
+            }
             dst_api
-                .add_songs_to_playlist(&mut dst_playlist, &dst_songs)
+                .add_songs_to_playlist(&mut dst_playlist, &to_sync)
                 .await?;
+
+            // like all songs that were added
             if config.like_all {
-                let new_likes = dst_songs
+                let new_likes = to_sync
                     .iter()
                     .filter(|s| !dst_likes.contains(s))
                     .cloned()
@@ -211,7 +224,7 @@ pub async fn synchronize(
         let dst_likes = dst_api.get_likes().await?;
 
         let mut new_likes = Vec::new();
-        for src_like in src_likes {
+        for src_like in src_likes.into_iter() {
             if dst_likes.contains(&src_like) {
                 continue;
             }
@@ -220,7 +233,7 @@ pub async fn synchronize(
             };
             // HACK: takes into account discrepancy for YtMusic with no ISRC
             if dst_likes.contains(&song) {
-                debug!("discrepancy, song already liked: {}", song.name);
+                debug!("discrepancy, song already liked: {}", song);
                 continue;
             }
             new_likes.push(song);
@@ -228,7 +241,7 @@ pub async fn synchronize(
         dst_api.add_like(&new_likes).await?;
     }
 
-    info!("Synchronization complete.");
+    info!("Synchronization complete!");
 
     Ok(())
 }

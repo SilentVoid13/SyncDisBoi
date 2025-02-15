@@ -129,8 +129,9 @@ impl Song {
         }
 
         // INFO: We can't really compare artists names since they are not always the
-        // same order For certain platforms they are included in the song name
-        // but not the metadata
+        // same order.
+        // For certain platforms they are included in the song name but not in the
+        // metadata
 
         // Check song duration resemblance
         // NOTE: YtMusic duration is sometimes garbage, it's incorrect on certain songs
@@ -140,10 +141,7 @@ impl Song {
 
         // we allow a 1 second difference
         if !(dur1 - 1..=dur1 + 1).contains(&dur2) {
-            debug!(
-                "Duration: {} vs {} --> {} VS {}",
-                dur1, dur2, self.name, other.name
-            );
+            debug!("Duration: {} vs {} --> {} VS {}", dur1, dur2, self, other);
             return false;
         }
 

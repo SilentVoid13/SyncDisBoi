@@ -52,7 +52,7 @@ impl YtMusicResponse {
                 mpsr.contents
                     .as_ref()?
                     .iter()
-                    .map(|item| &item.music_responsive_list_item_renderer)
+                    .filter_map(|item| item.music_responsive_list_item_renderer.as_ref())
                     .collect(),
             )
         } else if let Some(msr) = &mut section_renderer_content.music_shelf_renderer {
@@ -60,7 +60,7 @@ impl YtMusicResponse {
                 msr.contents
                     .as_ref()?
                     .iter()
-                    .map(|item| &item.music_responsive_list_item_renderer)
+                    .filter_map(|item| item.music_responsive_list_item_renderer.as_ref())
                     .collect(),
             )
         } else {
@@ -208,7 +208,7 @@ impl MusicPlaylistShelfRenderer {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MusicPlaylistShelfRendererContent {
-    pub music_responsive_list_item_renderer: MusicResponsiveListItemRenderer,
+    pub music_responsive_list_item_renderer: Option<MusicResponsiveListItemRenderer>,
 }
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]

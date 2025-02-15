@@ -223,7 +223,7 @@ impl SpotifyApi {
             .ok_or(eyre!("Invalid Retry-After header"))?
             .to_str()?
             .parse::<u64>()?;
-        warn!(
+        debug!(
             "API rate limit reached, sleeping for {} seconds",
             sleep_time
         );
