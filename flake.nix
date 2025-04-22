@@ -58,7 +58,6 @@
 
         fnBuildInputs = pkgs:
           with pkgs; [
-            pkg-config
             openssl
           ];
         shellPkgs = with pkgs; [];
