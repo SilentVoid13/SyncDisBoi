@@ -53,10 +53,10 @@ impl TidalApi {
     ) -> Result<Self> {
         let token = if !oauth_token_path.exists() || clear_cache {
             info!("requesting new token");
-            Self::request_token(client_id, client_secret).await?
+            Self::request_token(client_id, client_secret, config.debug).await?
         } else {
             info!("refreshing token");
-            Self::refresh_token(client_id, client_secret, &oauth_token_path).await?
+            Self::refresh_token(client_id, client_secret, &oauth_token_path, config.debug).await?
         };
         // Write new token
         let mut file = std::fs::File::create(&oauth_token_path)?;
@@ -80,9 +80,14 @@ impl TidalApi {
         let client = client.build()?;
 
         let url = format!("{}/users/me", Self::API_V2_URL);
-        let res = client.get(&url).send().await?;
-        let res = res.error_for_status()?;
-        let me_res: TidalMediaResponseSingle = res.json().await?;
+        let me_res: TidalMediaResponseSingle = Self::make_request_json_internal(
+            &client,
+            &url,
+            &HttpMethod::Get(&json!({})),
+            None,
+            config.debug,
+        )
+        .await?;
         let country_code = me_res.data.attributes.country.unwrap();
 
         Ok(Self {
@@ -93,15 +98,26 @@ impl TidalApi {
         })
     }
 
-    async fn request_token(client_id: &str, client_secret: &str) -> Result<OAuthToken> {
+    async fn request_token(
+        client_id: &str,
+        client_secret: &str,
+        debug: bool,
+    ) -> Result<OAuthToken> {
         let client = reqwest::Client::new();
         let params = json!({
             "client_id": client_id,
             "scope": Self::SCOPE,
         });
-        let res = client.post(Self::AUTH_URL).form(&params).send().await?;
-        let res = res.error_for_status()?;
-        let device_res: TidalOAuthDeviceRes = res.json().await?;
+
+        let device_res: TidalOAuthDeviceRes = Self::make_request_json_internal(
+            &client,
+            Self::AUTH_URL,
+            &HttpMethod::Post(&params),
+            None,
+            debug,
+        )
+        .await?;
+
         let url = format!("https://{}", device_res.verification_uri_complete);
 
         webbrowser::open(&url)?;
@@ -120,6 +136,7 @@ impl TidalApi {
             .form(&auth_token)
             .send()
             .await?;
+        // TODO: move to Self::make_request_json_internal, the basic_auth is the problem
         let token: OAuthToken = res.json().await?;
 
         Ok(token)
@@ -129,6 +146,7 @@ impl TidalApi {
         client_id: &str,
         client_secret: &str,
         oauth_token_path: &PathBuf,
+        debug: bool,
     ) -> Result<OAuthToken> {
         let client = reqwest::Client::new();
         let reader = std::fs::File::open(oauth_token_path)?;
@@ -140,9 +158,15 @@ impl TidalApi {
             "grant_type": "refresh_token",
             "refresh_token": &oauth_token.refresh_token,
         });
-        let res = client.post(Self::TOKEN_URL).form(&params).send().await?;
-        let res = res.error_for_status()?;
-        let refresh_token: OAuthRefreshToken = res.json().await?;
+        let refresh_token: OAuthRefreshToken = Self::make_request_json_internal(
+            &client,
+            Self::TOKEN_URL,
+            &HttpMethod::Post(&params),
+            None,
+            debug,
+        )
+        .await?;
+
         oauth_token.access_token = refresh_token.access_token;
         oauth_token.expires_in = refresh_token.expires_in;
         oauth_token.scope = refresh_token.scope;
@@ -181,17 +205,7 @@ impl TidalApi {
         method: &HttpMethod<'_>,
         lim_off: Option<(usize, usize)>,
     ) -> Result<Response> {
-        let mut request = match method {
-            HttpMethod::Get(p) => self.client.get(url).query(p),
-            HttpMethod::Post(b) => self.client.post(url).form(b),
-            HttpMethod::Put(b) => self.client.put(url).form(b),
-        };
-        if let Some((limit, offset)) = lim_off {
-            request = request.query(&[("limit", limit), ("offset", offset)]);
-        }
-        let res = request.send().await?;
-        let res = res.error_for_status()?;
-        Ok(res)
+        Self::make_request_internal(&self.client, url, method, lim_off).await
     }
 
     async fn make_request_json<T>(
@@ -204,10 +218,47 @@ impl TidalApi {
     where
         T: DeserializeOwned,
     {
-        let res = self
-            .make_request(url, method, Some((limit, offset)))
-            .await?;
-        let obj = if self.config.debug {
+        Self::make_request_json_internal(
+            &self.client,
+            url,
+            method,
+            Some((limit, offset)),
+            self.config.debug,
+        )
+        .await
+    }
+
+    async fn make_request_internal(
+        client: &reqwest::Client,
+        url: &str,
+        method: &HttpMethod<'_>,
+        lim_off: Option<(usize, usize)>,
+    ) -> Result<Response> {
+        let mut request = match method {
+            HttpMethod::Get(p) => client.get(url).query(p),
+            HttpMethod::Post(b) => client.post(url).form(b),
+            HttpMethod::Put(b) => client.put(url).form(b),
+        };
+        if let Some((limit, offset)) = lim_off {
+            request = request.query(&[("limit", limit), ("offset", offset)]);
+        }
+        let res = request.send().await?;
+        let res = res.error_for_status()?;
+        Ok(res)
+    }
+
+    async fn make_request_json_internal<T>(
+        client: &reqwest::Client,
+        url: &str,
+        method: &HttpMethod<'_>,
+        lim_off: Option<(usize, usize)>,
+        debug: bool,
+    ) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        let res = Self::make_request_internal(client, url, method, lim_off).await?;
+        let obj = if debug {
             let text = res.text().await?;
             std::fs::write("debug/tidal_last_res.json", &text)?;
             serde_json::from_str(&text)?

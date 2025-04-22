@@ -153,7 +153,12 @@ impl TryInto<Songs> for TidalMediaResponse {
             let mut artists = Vec::new();
             let mut album = None;
 
-            if let Some(album_rel) = data.relationships.albums.and_then(|a| a.data) {
+            if let Some(album_rel) = data
+                .relationships
+                .as_ref()
+                .and_then(|r| r.albums.as_ref())
+                .and_then(|a| a.data.as_ref())
+            {
                 if album_rel.len() != 1 {
                     return Err(eyre!("invalid song with multiple albums"));
                 }
@@ -172,7 +177,12 @@ impl TryInto<Songs> for TidalMediaResponse {
                     name: title,
                 });
             }
-            if let Some(artists_rel) = data.relationships.artists.and_then(|a| a.data) {
+            if let Some(artists_rel) = data
+                .relationships
+                .as_ref()
+                .and_then(|r| r.artists.as_ref())
+                .and_then(|a| a.data.as_ref())
+            {
                 for artist_rel in artists_rel {
                     let artist_data = included
                         .iter()

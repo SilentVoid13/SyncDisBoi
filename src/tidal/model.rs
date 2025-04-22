@@ -96,7 +96,7 @@ pub struct TidalMediaResponse {
 pub struct TidalMediaData {
     pub id: String,
     pub attributes: TidalMediaAttributes,
-    pub relationships: TidalMediaRelationships,
+    pub relationships: Option<TidalMediaRelationships>,
     #[allow(dead_code)]
     #[serde(rename = "type")]
     pub typ: String,

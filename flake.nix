@@ -34,6 +34,7 @@
             default.cargo
             default.clippy
             default.rustfmt
+            pkgs.rust-analyzer
             targets.x86_64-unknown-linux-musl.latest.rust-std
             targets.x86_64-pc-windows-gnu.latest.rust-std
             targets.aarch64-unknown-linux-musl.latest.rust-std
@@ -52,27 +53,15 @@
         naerskBuildPackageT = target: args: naerskBuildPackage (args // {CARGO_BUILD_TARGET = target;});
 
         cargoConfig = {
-          # Tells Cargo to enable static compilation.
-          # (https://doc.rust-lang.org/cargo/reference/config.html#targettriplerustflags)
-          #
-          # Note that the resulting binary might still be considered dynamically
-          # linked by ldd, but that's just because the binary might have
-          # position-independent-execution enabled.
-          # (see: https://github.com/rust-lang/rust/issues/79624#issuecomment-737415388)
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS = "-C target-feature=+crt-static";
-
-          # Tells Cargo that it should use Wine to run tests.
-          # (https://doc.rust-lang.org/cargo/reference/config.html#targettriplerunner)
-          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER = pkgs.writeScript "wine-wrapper" ''
-            export WINEPREFIX="$(mktemp -d)"
-            exec wine64 $@
-          '';
         };
 
-        fnBuildInputs = pkgs: with pkgs; [openssl];
-        shellPkgs = with pkgs; [
-          wineWowPackages.stable
-        ];
+        fnBuildInputs = pkgs:
+          with pkgs; [
+            pkg-config
+            openssl
+          ];
+        shellPkgs = with pkgs; [];
       in rec {
         defaultPackage = naerskBuildPackage {
           src = ./.;
@@ -117,10 +106,7 @@
             pkgsCross.mingwW64.stdenv.cc
             pkgsCross.mingwW64.windows.pthreads
           ];
-          nativeBuildInputs = with pkgs; [
-            # We need Wine to run tests:
-            wineWowPackages.stable
-          ];
+          nativeBuildInputs = with pkgs; [];
           buildInputs = fnBuildInputs pkgs.pkgsCross.mingwW64;
         };
 
