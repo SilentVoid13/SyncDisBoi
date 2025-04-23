@@ -1,10 +1,12 @@
-use color_eyre::eyre::{eyre, Error, Result};
+use color_eyre::eyre::{Error, Result, eyre};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
+use ytmapi_rs::common::YoutubeID;
+use ytmapi_rs::parse::{PlaylistSong, SearchResultSong};
 
-use super::model::YtMusicResponse;
 use super::YtMusicApi;
+use super::model::YtMusicResponse;
 use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -287,5 +289,71 @@ impl TryInto<SearchSongUnique> for YtMusicResponse {
             duration_ms: duration,
         };
         Ok(SearchSongUnique(Some(song)))
+    }
+}
+
+impl TryInto<Song> for PlaylistSong {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Song, Self::Error> {
+        let id = self.video_id.get_raw().to_string();
+
+        let mut artists = vec![];
+        for artist in self.artists {
+            artists.push(Artist {
+                name: artist.name,
+                id: artist.id.map(|i| i.get_raw().to_string()),
+            });
+        }
+
+        let album = Album {
+            id: Some(self.album.id.get_raw().to_string()),
+            name: self.album.name,
+        };
+
+        dbg!(&self.duration);
+        Ok(Song {
+            source: MusicApiType::YtMusic,
+            id: id.clone(),
+            sid: Some(id),
+            name: self.title,
+            artists,
+            album: Some(album),
+            duration_ms: 0,
+            isrc: None,
+        })
+    }
+}
+
+impl TryInto<Song> for SearchResultSong {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Song, Self::Error> {
+        let id = self.video_id.get_raw().to_string();
+
+        let mut artists = vec![];
+        dbg!(&self.artist);
+        artists.push(Artist {
+            name: self.artist,
+            id: None,
+        });
+
+        let a = self.album.unwrap();
+        let album = Album {
+            id: Some(a.id.get_raw().to_string()),
+            name: a.name,
+        };
+
+        dbg!(&self.duration);
+        Ok(Song {
+            source: MusicApiType::YtMusic,
+            id: id.clone(),
+            sid: Some(id),
+            name: self.title,
+            artists,
+            album: Some(album),
+            duration_ms: 0,
+            isrc: None,
+        })
     }
 }
