@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 
 use async_trait::async_trait;
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 use model::{YtMusicAddLikeResponse, YtMusicOAuthDeviceRes};
 use reqwest::header::{HeaderMap, HeaderName};
 use serde::de::DeserializeOwned;
@@ -16,13 +16,13 @@ use serde_json::json;
 use tracing::info;
 
 use self::model::{YtMusicContinuationResponse, YtMusicPlaylistEditResponse, YtMusicResponse};
+use crate::ConfigArgs;
 use crate::music_api::{
-    MusicApi, MusicApiType, OAuthRefreshToken, OAuthToken, Playlist, Playlists, Song, Songs,
-    PLAYLIST_DESC,
+    MusicApi, MusicApiType, OAuthRefreshToken, OAuthToken, PLAYLIST_DESC, Playlist, Playlists,
+    Song, Songs,
 };
 use crate::yt_music::model::{YtMusicPlaylistCreateResponse, YtMusicPlaylistDeleteResponse};
 use crate::yt_music::response::{SearchSongUnique, SearchSongs};
-use crate::ConfigArgs;
 
 static CONTEXT: LazyLock<serde_json::Value> = LazyLock::new(|| {
     json!({
@@ -220,6 +220,7 @@ impl YtMusicApi {
         let mut continuation = response.get_continuation();
 
         while let Some(cont) = continuation {
+            dbg!(&cont);
             let mut response2: YtMusicContinuationResponse =
                 self.make_request(path, body, Some(&cont)).await?;
             response.merge(&mut response2);
@@ -311,6 +312,10 @@ impl MusicApi for YtMusicApi {
         let body = json!({ "browseId": browse_id });
         let response = self.paginated_request("browse", &body).await?;
         let songs: Songs = response.try_into()?;
+
+        if id == "PL6tm3b08JQXxsnR1X74aEDHJWIS8fkUT2" {
+            todo!();
+        }
         Ok(songs.0)
     }
 
