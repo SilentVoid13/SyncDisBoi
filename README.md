@@ -52,6 +52,8 @@ A [Nix flake](https://github.com/SilentVoid13/SyncDisBoi/blob/master/flake.nix) 
 
 ## Usage
 
+To use SyncDisBoi, you need to set up account access for the API of the corresponding music platform. Setup instructions available below.
+
 Here are some command examples:
 ```bash
 # sync from Youtube Music to Spotify
@@ -90,12 +92,10 @@ Here are some command examples:
     export -d ./tidal.json
 ```
 
-To use SyncDisBoi, you need to set up account access for the API of the corresponding music platform.
-
 ### Spotify API setup
 
 - Visit [https://developer.spotify.com/](https://developer.spotify.com/), go to your dashboard and create an application.
-- Add [http://localhost:8888/callback](http://localhost:8888/callback) as a redirect URI in your application settings.
+- Add [http://127.0.0.1:8888/callback](http://127.0.0.1:8888/callback) as a redirect URI in your application settings.
 - Copy the application client id and client secret.
 
 You will then need to provide the client id and client secret as arguments for SyncDisBoi.
