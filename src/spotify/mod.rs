@@ -42,8 +42,8 @@ enum HttpMethod<'a> {
 
 impl SpotifyApi {
     const BASE_API: &'static str = "https://api.spotify.com/v1";
-    const REDIRECT_URI_HOST: &'static str = "localhost:8888";
-    const REDIRECT_URI_URL: &'static str = "http://localhost:8888/callback";
+    const REDIRECT_URI_HOST: &'static str = "127.0.0.1:8888";
+    const REDIRECT_URI_URL: &'static str = "http://127.0.0.1:8888/callback";
     const TOKEN_URL: &'static str = "https://accounts.spotify.com/api/token";
     const SCOPES: &'static [&'static str] = &[
         "user-read-email",
@@ -179,7 +179,7 @@ impl SpotifyApi {
         if splits.len() <= 1 {
             return Err(eyre!("Invalid spotify server callback"));
         }
-        let url = format!("{}{}", SpotifyApi::REDIRECT_URI_HOST, splits[1]);
+        let url = format!("http://{}{}", SpotifyApi::REDIRECT_URI_HOST, splits[1]);
         let auth_code = reqwest::Url::parse(&url)?
             .query_pairs()
             .find(|pair| pair.0 == "code")
