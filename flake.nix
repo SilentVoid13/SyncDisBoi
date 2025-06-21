@@ -14,21 +14,24 @@
     };
   };
 
-  outputs = {
-    self,
-    nixpkgs,
-    flake-utils,
-    naersk,
-    fenix,
-  }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      naersk,
+      fenix,
+    }:
     flake-utils.lib.eachDefaultSystem (
-      system: let
+      system:
+      let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [fenix.overlays.default];
+          overlays = [ fenix.overlays.default ];
         };
 
-        toolchain = with fenix.packages.${system};
+        toolchain =
+          with fenix.packages.${system};
           combine [
             default.rustc
             default.cargo
@@ -45,46 +48,45 @@
           rustc = toolchain;
         };
 
-        naerskBuildPackage = args:
-          naersk'.buildPackage (
-            args
-            // cargoConfig
-          );
-        naerskBuildPackageT = target: args: naerskBuildPackage (args // {CARGO_BUILD_TARGET = target;});
+        naerskBuildPackage = args: naersk'.buildPackage (args // cargoConfig);
+        naerskBuildPackageT = target: args: naerskBuildPackage (args // { CARGO_BUILD_TARGET = target; });
 
         cargoConfig = {
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS = "-C target-feature=+crt-static";
         };
 
-        fnBuildInputs = pkgs:
-          with pkgs; [
+        fnBuildInputs =
+          pkgs: with pkgs; [
             openssl
           ];
-        shellPkgs = with pkgs; [];
-      in rec {
+        shellPkgs = with pkgs; [ ];
+      in
+      rec {
         defaultPackage = naerskBuildPackage {
           src = ./.;
           #doCheck = true;
           buildInputs =
             (fnBuildInputs pkgs)
-            ++ (with pkgs;
-              lib.optionals stdenv.isDarwin
-              [
+            ++ (
+              with pkgs;
+              lib.optionals stdenv.isDarwin [
                 darwin.apple_sdk.frameworks.CoreFoundation
                 darwin.apple_sdk.frameworks.CoreServices
                 darwin.apple_sdk.frameworks.SystemConfiguration
                 darwin.apple_sdk.frameworks.Security
-              ]);
+              ]
+            );
         };
 
         packages.x86_64-unknown-linux-musl = naerskBuildPackageT "x86_64-unknown-linux-musl" {
           src = ./.;
           #doCheck = true;
-          nativeBuildInputs = with pkgs; [pkgsStatic.stdenv.cc];
+          nativeBuildInputs = with pkgs; [ pkgsStatic.stdenv.cc ];
           buildInputs = fnBuildInputs pkgs.pkgsCross.musl64.pkgsStatic;
         };
 
-        packages.aarch64-unknown-linux-musl = with pkgs.pkgsCross.aarch64-multiplatform-musl;
+        packages.aarch64-unknown-linux-musl =
+          with pkgs.pkgsCross.aarch64-multiplatform-musl;
           naerskBuildPackageT "aarch64-unknown-linux-musl" {
             src = ./.;
             strictDeps = true;
@@ -105,13 +107,13 @@
             pkgsCross.mingwW64.stdenv.cc
             pkgsCross.mingwW64.windows.pthreads
           ];
-          nativeBuildInputs = with pkgs; [];
+          nativeBuildInputs = with pkgs; [ ];
           buildInputs = fnBuildInputs pkgs.pkgsCross.mingwW64;
         };
 
         devShell = pkgs.mkShell (
           {
-            inputsFrom = [defaultPackage];
+            inputsFrom = [ defaultPackage ];
             packages = shellPkgs;
             #CARGO_BUILD_TARGET = "x86_64-unknown-linux-gnu";
             LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath (fnBuildInputs pkgs)}";

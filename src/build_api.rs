@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use async_trait::async_trait;
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 use sync_dis_boi::music_api::DynMusicApi;
 use sync_dis_boi::spotify::SpotifyApi;
 use sync_dis_boi::tidal::TidalApi;

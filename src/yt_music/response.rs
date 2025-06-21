@@ -1,10 +1,10 @@
-use color_eyre::eyre::{eyre, Error, Result};
+use color_eyre::eyre::{Error, Result, eyre};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use super::model::YtMusicResponse;
 use super::YtMusicApi;
+use super::model::YtMusicResponse;
 use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
 
 #[derive(Deserialize, Serialize, Debug)]

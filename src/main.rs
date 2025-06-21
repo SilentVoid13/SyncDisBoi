@@ -6,10 +6,10 @@ use std::path::Path;
 use args::{MusicPlatformDst, RootArgs};
 use build_api::BuildApi;
 use clap::Parser;
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 use sync_dis_boi::export::export;
 use sync_dis_boi::sync::synchronize;
-use tracing::{debug, info, Level};
+use tracing::{Level, debug, info};
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::prelude::*;
 
