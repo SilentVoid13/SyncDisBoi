@@ -1,9 +1,9 @@
-use color_eyre::eyre::{eyre, Error, OptionExt, Result};
+use color_eyre::eyre::{Error, OptionExt, Result, eyre};
 use tracing::error;
 
 use super::model::{
-    TidalMediaResponse, TidalPageResponse, TidalPlaylistResponse, TidalSearchResponse,
-    TidalSongItemResponse, TidalSongResponse,
+    TidalMediaData, TidalMediaResponse, TidalPageResponse, TidalPlaylistResponse,
+    TidalSearchResponse, TidalSongItemResponse, TidalSongResponse,
 };
 use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
 
@@ -126,91 +126,101 @@ impl TryInto<Songs> for TidalMediaResponse {
 
         let mut songs = Vec::new();
         for data in self.data {
-            let duration = &data
-                .attributes
-                .duration
-                .ok_or_eyre("missing song duration")?;
-            let duration = iso8601::duration(duration).map_err(|e| eyre!(e))?;
-            let iso8601::Duration::YMDHMS {
-                year,
-                month,
-                day,
-                hour,
-                minute,
-                second,
-                millisecond,
-            } = duration
-            else {
-                unreachable!("invalid iso8601 duration");
-            };
-            assert!(year == 0 && month == 0 && day == 0);
-            // convert to ms
-            let duration = hour as usize * 60 * 60 * 1000
-                + minute as usize * 60 * 1000
-                + second as usize * 1000
-                + millisecond as usize;
-
-            let mut artists = Vec::new();
-            let mut album = None;
-
-            if let Some(album_rel) = data
-                .relationships
-                .as_ref()
-                .and_then(|r| r.albums.as_ref())
-                .and_then(|a| a.data.as_ref())
-            {
-                if album_rel.len() != 1 {
-                    return Err(eyre!("invalid song with multiple albums"));
-                }
-                let album_rel = album_rel.first().unwrap();
-                let album_data = included
-                    .iter()
-                    .find(|i| i.id == album_rel.id)
-                    .ok_or_eyre("missing song album data")?;
-                let title = album_data
-                    .attributes
-                    .title
-                    .clone()
-                    .ok_or_eyre("missing song album title")?;
-                album = Some(Album {
-                    id: Some(album_data.id.clone()),
-                    name: title,
-                });
-            }
-            if let Some(artists_rel) = data
-                .relationships
-                .as_ref()
-                .and_then(|r| r.artists.as_ref())
-                .and_then(|a| a.data.as_ref())
-            {
-                for artist_rel in artists_rel {
-                    let artist_data = included
-                        .iter()
-                        .find(|i| i.id == artist_rel.id)
-                        .ok_or_eyre("missing song artist data")?;
-                    let name = artist_data
-                        .attributes
-                        .name
-                        .clone()
-                        .ok_or_eyre("missing song artist name")?;
-                    artists.push(Artist {
-                        id: Some(artist_data.id.clone()),
-                        name,
-                    });
+            match media_data_to_song(data, &included) {
+                Ok(s) => songs.push(s),
+                Err(e) => {
+                    error!("failed to parse song in response, skipping it: {}", e);
+                    continue;
                 }
             }
-
-            songs.push(Song {
-                source: MusicApiType::Tidal,
-                id: data.id,
-                sid: None,
-                isrc: Some(data.attributes.isrc.ok_or_eyre("missing song isrc")?),
-                name: data.attributes.title.ok_or_eyre("missing song title")?,
-                album,
-                artists,
-                duration_ms: duration,
-            })
         }
         Ok(Songs(songs))
     }
+}
+
+fn media_data_to_song(data: TidalMediaData, included: &[TidalMediaData]) -> Result<Song> {
+    let duration = &data
+        .attributes
+        .duration
+        .ok_or_eyre("missing song duration")?;
+    let duration = iso8601::duration(duration).map_err(|e| eyre!(e))?;
+    let iso8601::Duration::YMDHMS {
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        millisecond,
+    } = duration
+    else {
+        unreachable!("invalid iso8601 duration");
+    };
+    assert!(year == 0 && month == 0 && day == 0);
+    // convert to ms
+    let duration = hour as usize * 60 * 60 * 1000
+        + minute as usize * 60 * 1000
+        + second as usize * 1000
+        + millisecond as usize;
+
+    let mut artists = Vec::new();
+    let mut album = None;
+
+    if let Some(album_rel) = data
+        .relationships
+        .as_ref()
+        .and_then(|r| r.albums.as_ref())
+        .and_then(|a| a.data.as_ref())
+    {
+        if album_rel.len() != 1 {
+            return Err(eyre!("invalid song with multiple albums"));
+        }
+        let album_rel = album_rel.first().unwrap();
+        let album_data = included
+            .iter()
+            .find(|i| i.id == album_rel.id)
+            .ok_or_eyre("missing song album data")?;
+        let title = album_data
+            .attributes
+            .title
+            .clone()
+            .ok_or_eyre("missing song album title")?;
+        album = Some(Album {
+            id: Some(album_data.id.clone()),
+            name: title,
+        });
+    }
+    if let Some(artists_rel) = data
+        .relationships
+        .as_ref()
+        .and_then(|r| r.artists.as_ref())
+        .and_then(|a| a.data.as_ref())
+    {
+        for artist_rel in artists_rel {
+            let artist_data = included
+                .iter()
+                .find(|i| i.id == artist_rel.id)
+                .ok_or_eyre("missing song artist data")?;
+            let name = artist_data
+                .attributes
+                .name
+                .clone()
+                .ok_or_eyre("missing song artist name")?;
+            artists.push(Artist {
+                id: Some(artist_data.id.clone()),
+                name,
+            });
+        }
+    }
+
+    Ok(Song {
+        source: MusicApiType::Tidal,
+        id: data.id,
+        sid: None,
+        isrc: Some(data.attributes.isrc.ok_or_eyre("missing song isrc")?),
+        name: data.attributes.title.ok_or_eyre("missing song title")?,
+        album,
+        artists,
+        duration_ms: duration,
+    })
 }

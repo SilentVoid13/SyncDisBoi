@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 use model::SpotifyUserResponse;
 use reqwest::header::HeaderMap;
 use reqwest::{Response, StatusCode};
@@ -19,12 +19,12 @@ use tracing::{debug, info, warn};
 use self::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySnapshotResponse, SpotifySongItemResponse,
 };
+use crate::ConfigArgs;
 use crate::music_api::{
-    MusicApi, MusicApiType, OAuthRefreshToken, OAuthToken, Playlist, Playlists, Song, Songs,
-    PLAYLIST_DESC,
+    MusicApi, MusicApiType, OAuthRefreshToken, OAuthToken, PLAYLIST_DESC, Playlist, Playlists,
+    Song, Songs,
 };
 use crate::spotify::model::SpotifySearchResponse;
-use crate::ConfigArgs;
 
 pub struct SpotifyApi {
     client: reqwest::Client,
@@ -42,8 +42,8 @@ enum HttpMethod<'a> {
 
 impl SpotifyApi {
     const BASE_API: &'static str = "https://api.spotify.com/v1";
-    const REDIRECT_URI_HOST: &'static str = "localhost:8888";
-    const REDIRECT_URI_URL: &'static str = "http://localhost:8888/callback";
+    const REDIRECT_URI_HOST: &'static str = "127.0.0.1:8888";
+    const REDIRECT_URI_URL: &'static str = "http://127.0.0.1:8888/callback";
     const TOKEN_URL: &'static str = "https://accounts.spotify.com/api/token";
     const SCOPES: &'static [&'static str] = &[
         "user-read-email",
@@ -457,7 +457,7 @@ impl MusicApi for SpotifyApi {
         return Ok(None);
     }
 
-    async fn add_like(&self, songs: &[Song]) -> Result<()> {
+    async fn add_likes(&self, songs: &[Song]) -> Result<()> {
         // NOTE: A maximum of 50 items can be specified in one request
         for songs_chunk in songs.chunks(50) {
             let ids: Vec<&str> = songs_chunk.iter().map(|s| s.id.as_str()).collect();

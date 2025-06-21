@@ -5,22 +5,22 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use color_eyre::eyre::eyre;
 use color_eyre::Result;
+use color_eyre::eyre::eyre;
 use model::{TidalMediaResponse, TidalMediaResponseSingle, TidalOAuthDeviceRes};
-use reqwest::header::HeaderMap;
 use reqwest::Response;
+use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use tracing::info;
 
 use self::model::{TidalPageResponse, TidalPlaylistResponse, TidalSongItemResponse};
+use crate::ConfigArgs;
 use crate::music_api::{
-    MusicApi, MusicApiType, OAuthRefreshToken, OAuthReqToken, OAuthToken, Playlist, Playlists,
-    Song, Songs, PLAYLIST_DESC,
+    MusicApi, MusicApiType, OAuthRefreshToken, OAuthReqToken, OAuthToken, PLAYLIST_DESC, Playlist,
+    Playlists, Song, Songs,
 };
 use crate::tidal::model::{TidalPlaylistCreateResponse, TidalSearchResponse};
-use crate::ConfigArgs;
 
 pub struct TidalApi {
     client: reqwest::Client,
@@ -428,7 +428,7 @@ impl MusicApi for TidalApi {
         Ok(None)
     }
 
-    async fn add_like(&self, songs: &[Song]) -> Result<()> {
+    async fn add_likes(&self, songs: &[Song]) -> Result<()> {
         if songs.is_empty() {
             return Ok(());
         }

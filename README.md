@@ -102,7 +102,7 @@ You will then need to provide the client id and client secret as arguments for S
 After the first authorization, the OAuth token will be cached in `~/.config/SyncDisBoi/spotify_oauth.json` (on Linux) for future use.
 
 Notes:
-- After authorizing access for your Spotify account, SyncDisBoi will open the 'http://localhost:8888/callback' URL in your browser. If you get an 'Unable to connect' response this is normal as the server is quickly opened and shutdown once it receives the auth code.
+- After authorizing access for your Spotify account, SyncDisBoi will open the 'http://127.0.0.1:8888/callback' URL in your browser. If you get an 'Unable to connect' response this is normal as the server is quickly opened and shutdown once it receives the auth code.
 
 ### Youtube Music API setup
 
