@@ -24,28 +24,18 @@ pub struct RootArgs {
 pub enum MusicPlatformSrc {
     YtMusic {
         /// The path to the headers JSON file
-        #[arg(short, long)]
+        #[arg(long)]
         headers: Option<PathBuf>,
-        // FIXME: Android Auto Oauth is broken, probably forever
-        // https://github.com/sigma67/ytmusicapi/discussions/682
-        // https://github.com/yt-dlp/yt-dlp/issues/11462
         /// The client ID for the Youtube API application
         #[arg(
             long,
             env = "YTMUSIC_CLIENT_ID",
             conflicts_with = "headers",
             requires = "client_secret"
-            //default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
         )]
         client_id: Option<String>,
         /// The client secret for the Youtube API application
-        #[arg(
-            long,
-            env = "YTMUSIC_CLIENT_SECRET",
-            conflicts_with = "headers",
-            requires = "client_secret"
-            //default_value = "SboVhoG9s0rNafixCSGGKXAT"
-        )]
+        #[arg(long, env = "YTMUSIC_CLIENT_SECRET", conflicts_with = "headers")]
         client_secret: Option<String>,
         /// Clear the cached ytmusic_oauth.json file
         #[arg(long, requires = "client_id", requires = "client_secret")]
@@ -95,28 +85,18 @@ pub enum MusicPlatformSrc {
 pub enum MusicPlatformDst {
     YtMusic {
         /// The path to the headers JSON file
-        #[arg(short, long)]
+        #[arg(long)]
         headers: Option<PathBuf>,
-        // FIXME: Android Auto Oauth is broken, probably forever
-        // https://github.com/sigma67/ytmusicapi/discussions/682
-        // https://github.com/yt-dlp/yt-dlp/issues/11462
         /// The client ID for the Youtube API application
         #[arg(
             long,
             env = "YTMUSIC_CLIENT_ID",
             conflicts_with = "headers",
             requires = "client_secret"
-            //default_value = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
         )]
         client_id: Option<String>,
         /// The client secret for the Youtube API application
-        #[arg(
-            long,
-            env = "YTMUSIC_CLIENT_SECRET",
-            conflicts_with = "headers",
-            requires = "client_secret"
-            //default_value = "SboVhoG9s0rNafixCSGGKXAT"
-        )]
+        #[arg(long, env = "YTMUSIC_CLIENT_SECRET", conflicts_with = "headers")]
         client_secret: Option<String>,
         /// Clear the cached ytmusic_oauth.json file
         #[arg(long, requires = "client_id", requires = "client_secret")]
