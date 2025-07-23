@@ -20,4 +20,4 @@ tokio = { version = "1.20.1", features = ["full"] }
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
 webbrowser = "0.8.14"
-ytmapi-rs = "*"
+ytmapi-rs = { path = "/home/silent/H/t/youtui/ytmapi-rs", features = ["simplified-queries"] }

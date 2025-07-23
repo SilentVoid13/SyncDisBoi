@@ -209,88 +209,9 @@ impl TryInto<SearchSongs> for YtMusicResponse {
     }
 }
 
-impl TryInto<SearchSongUnique> for YtMusicResponse {
-    type Error = Error;
-
-    fn try_into(mut self) -> Result<SearchSongUnique, Self::Error> {
-        let card_shelf = match self.get_card_shelf() {
-            Some(x) => x,
-            None => return Ok(SearchSongUnique(None)),
-        };
-
-        let id = card_shelf.get_id().ok_or(eyre!("No song id"))?;
-        let name = card_shelf.get_name().ok_or(eyre!("No song name"))?;
-
-        // fc0 = song title
-        // fc1 = artists, album, duration
-
-        let mut album = None;
-        let mut artists: Vec<Artist> = vec![];
-        let mut duration = 0;
-        let re_duration = Regex::new(r"^(\d+:)*\d+:\d+$")?;
-
-        for run in card_shelf
-            .subtitle
-            .as_ref()
-            .ok_or(eyre!("no subtitle"))?
-            .runs
-            .as_ref()
-            .ok_or(eyre!("no subtitle.runs"))?
-            .iter()
-            .step_by(2)
-            .skip(1)
-        {
-            let text = run.get_text();
-
-            if let Some(nav) = &run.navigation_endpoint {
-                let id = nav
-                    .browse_endpoint
-                    .as_ref()
-                    .ok_or(eyre!("No browse endpoint"))?
-                    .browse_id
-                    .clone();
-                if id.starts_with("MPRE") {
-                    album = Some(Album {
-                        id: Some(id),
-                        name: text,
-                    });
-                } else {
-                    artists.push(Artist {
-                        id: Some(id),
-                        name: text,
-                    });
-                }
-            } else if re_duration.is_match(&text) {
-                duration = parse_duration(&text)?;
-            } else {
-                debug!("artist without id: {}", text);
-                artists.push(Artist {
-                    id: None,
-                    name: text,
-                });
-            }
-        }
-
-        // FIXME: it looks like album metadata is never present in search results
-        // maybe there's a way to get it?
-        //if album.is_none() || artists.is_empty() || duration == 0 {
-        //    debug!("skipping song with missing data: {}", name);
-        //    return Ok(SearchSongUnique(None));
-        //}
-
-        let song = Song {
-            source: MusicApiType::YtMusic,
-            id,
-            sid: None,
-            isrc: None,
-            name,
-            artists,
-            album,
-            duration_ms: duration,
-        };
-        Ok(SearchSongUnique(Some(song)))
-    }
-}
+////////////////////////////////////////////////////////////////////////////////
+//                                                                          ///
+//////////////////////////////////////////////////////////////////////////////
 
 impl TryInto<Song> for PlaylistSong {
     type Error = Error;
@@ -305,13 +226,12 @@ impl TryInto<Song> for PlaylistSong {
                 id: artist.id.map(|i| i.get_raw().to_string()),
             });
         }
-
         let album = Album {
             id: Some(self.album.id.get_raw().to_string()),
             name: self.album.name,
         };
+        let duration_ms = parse_duration(&self.duration)?;
 
-        dbg!(&self.duration);
         Ok(Song {
             source: MusicApiType::YtMusic,
             id: id.clone(),
@@ -319,7 +239,7 @@ impl TryInto<Song> for PlaylistSong {
             name: self.title,
             artists,
             album: Some(album),
-            duration_ms: 0,
+            duration_ms,
             isrc: None,
         })
     }
@@ -331,20 +251,18 @@ impl TryInto<Song> for SearchResultSong {
     fn try_into(self) -> Result<Song, Self::Error> {
         let id = self.video_id.get_raw().to_string();
 
-        let mut artists = vec![];
-        dbg!(&self.artist);
-        artists.push(Artist {
+        // FIXME: parse artists correctly
+        let artists = vec![Artist {
             name: self.artist,
             id: None,
-        });
-
+        }];
         let a = self.album.unwrap();
         let album = Album {
             id: Some(a.id.get_raw().to_string()),
             name: a.name,
         };
+        let duration_ms = parse_duration(&self.duration)?;
 
-        dbg!(&self.duration);
         Ok(Song {
             source: MusicApiType::YtMusic,
             id: id.clone(),
@@ -352,7 +270,7 @@ impl TryInto<Song> for SearchResultSong {
             name: self.title,
             artists,
             album: Some(album),
-            duration_ms: 0,
+            duration_ms,
             isrc: None,
         })
     }

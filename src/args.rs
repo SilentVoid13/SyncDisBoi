@@ -24,7 +24,7 @@ pub struct RootArgs {
 pub enum MusicPlatformSrc {
     YtMusic {
         /// The path to the headers JSON file
-        #[arg(short, long)]
+        #[arg(long)]
         headers: Option<PathBuf>,
         // FIXME: Android Auto Oauth is broken, probably forever
         // https://github.com/sigma67/ytmusicapi/discussions/682
@@ -43,7 +43,6 @@ pub enum MusicPlatformSrc {
             long,
             env = "YTMUSIC_CLIENT_SECRET",
             conflicts_with = "headers",
-            requires = "client_secret"
             //default_value = "SboVhoG9s0rNafixCSGGKXAT"
         )]
         client_secret: Option<String>,
@@ -95,7 +94,7 @@ pub enum MusicPlatformSrc {
 pub enum MusicPlatformDst {
     YtMusic {
         /// The path to the headers JSON file
-        #[arg(short, long)]
+        #[arg(long)]
         headers: Option<PathBuf>,
         // FIXME: Android Auto Oauth is broken, probably forever
         // https://github.com/sigma67/ytmusicapi/discussions/682
@@ -114,7 +113,6 @@ pub enum MusicPlatformDst {
             long,
             env = "YTMUSIC_CLIENT_SECRET",
             conflicts_with = "headers",
-            requires = "client_secret"
             //default_value = "SboVhoG9s0rNafixCSGGKXAT"
         )]
         client_secret: Option<String>,
