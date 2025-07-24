@@ -131,10 +131,15 @@ pub enum MusicPlatformDst {
     Export {
         /// The path to the file to export the playlists to
         #[arg(short, long)]
-        dest: PathBuf,
+        output: PathBuf,
         /// Minify the exported JSON file
         #[arg(long, default_value = "false")]
         minify: bool,
+    },
+    Import {
+        /// The path to the file to import the playlists from
+        #[arg(short, long)]
+        input: PathBuf,
     },
 }
 

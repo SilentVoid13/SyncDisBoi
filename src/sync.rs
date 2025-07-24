@@ -3,7 +3,7 @@ use serde_json::json;
 use tracing::{debug, info, warn};
 
 use crate::ConfigArgs;
-use crate::music_api::{DynMusicApi, MusicApiType, Song};
+use crate::music_api::{DynMusicApi, MusicApiType, Playlist, Song};
 use crate::utils::dedup_songs;
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
@@ -45,15 +45,56 @@ pub async fn synchronize(
         std::fs::create_dir_all("debug")?;
     }
 
-    info!("retrieving playlists...");
+    info!("retrieving source playlists...");
     let src_playlists = src_api.get_playlists_full().await?;
-    let mut dst_playlists = dst_api.get_playlists_full().await?;
-    let dst_likes = dst_api.get_likes().await?;
 
+    synchronize_playlists(src_playlists, &dst_api, &config).await?;
+
+    if config.sync_likes {
+        info!("synchronizing likes...");
+        let src_likes = src_api.get_likes().await?;
+        let dst_likes = dst_api.get_likes().await?;
+
+        let mut new_likes = Vec::new();
+        for src_like in src_likes.into_iter() {
+            if dst_likes.contains(&src_like) {
+                continue;
+            }
+            let Some(song) = dst_api.search_song(&src_like).await? else {
+                continue;
+            };
+            // HACK: takes into account discrepancy for YtMusic with no ISRC
+            if dst_likes.contains(&song) {
+                debug!("discrepancy, song already liked: {}", song);
+                continue;
+            }
+            new_likes.push(song);
+        }
+
+        info!("synchronizing {} new likes", new_likes.len());
+        dst_api.add_likes(&new_likes).await?;
+    }
+
+    Ok(())
+}
+
+pub async fn synchronize_playlists(
+    src_playlists: Vec<Playlist>,
+    dst_api: &DynMusicApi,
+    config: &ConfigArgs,
+) -> Result<()> {
     let mut all_missing_songs = json!({});
     let mut all_new_songs = json!({});
     let mut no_albums = json!({});
     let mut stats = json!({});
+
+    info!("retrieving destination playlists...");
+    let mut dst_playlists = dst_api.get_playlists_full().await?;
+    let mut dst_likes = vec![];
+    if config.like_all {
+        info!("retrieving destination likes...");
+        dst_likes = dst_api.get_likes().await?;
+    }
 
     for mut src_playlist in src_playlists
         .into_iter()
@@ -167,8 +208,11 @@ pub async fn synchronize(
         if attempts != 0 {
             conversion_rate = success as f64 / attempts as f64;
             info!(
-                "synchronizing playlist \"{}\" [ok], conversion rate: {}",
-                src_playlist.name, conversion_rate
+                "synchronizing playlist \"{}\" [ok], {}/{} songs ({}%)",
+                src_playlist.name,
+                success,
+                attempts,
+                conversion_rate * 100.0
             );
         } else {
             info!(
@@ -180,7 +224,10 @@ pub async fn synchronize(
         if config.debug {
             stats.as_object_mut().unwrap().insert(
                 src_playlist.name.clone(),
-                serde_json::to_value(conversion_rate)?,
+                json!({
+                    "percentage": conversion_rate,
+                    "number": format!("{}/{}", success, attempts),
+                }),
             );
             std::fs::write(
                 "debug/conversion_rate.json",
@@ -220,31 +267,6 @@ pub async fn synchronize(
                 )?;
             }
         }
-    }
-
-    if config.sync_likes {
-        info!("synchronizing likes...");
-        let src_likes = src_api.get_likes().await?;
-        let dst_likes = dst_api.get_likes().await?;
-
-        let mut new_likes = Vec::new();
-        for src_like in src_likes.into_iter() {
-            if dst_likes.contains(&src_like) {
-                continue;
-            }
-            let Some(song) = dst_api.search_song(&src_like).await? else {
-                continue;
-            };
-            // HACK: takes into account discrepancy for YtMusic with no ISRC
-            if dst_likes.contains(&song) {
-                debug!("discrepancy, song already liked: {}", song);
-                continue;
-            }
-            new_likes.push(song);
-        }
-
-        info!("synchronizing {} new likes", new_likes.len());
-        dst_api.add_likes(&new_likes).await?;
     }
 
     info!("Synchronization complete!");

@@ -8,6 +8,7 @@ use build_api::BuildApi;
 use clap::Parser;
 use color_eyre::eyre::{Result, eyre};
 use sync_dis_boi::export::export;
+use sync_dis_boi::import::import;
 use sync_dis_boi::sync::synchronize;
 use tracing::{Level, debug, info};
 use tracing_subscriber::filter::Targets;
@@ -26,6 +27,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(level)
         .with_target(true)
+        .without_time()
         .finish()
         .with(filter)
         .init();
@@ -48,8 +50,11 @@ async fn main() -> Result<()> {
 
     let src_api = args.src.parse(&args, &config_dir).await?;
     match args.src.get_dst() {
-        MusicPlatformDst::Export { dest, minify } => {
-            export(src_api, dest, *minify).await?;
+        MusicPlatformDst::Export { output, minify } => {
+            export(src_api, output, *minify).await?;
+        }
+        MusicPlatformDst::Import { input } => {
+            import(input, src_api, args.config).await?;
         }
         _ => {
             let dst_api = args.src.get_dst().parse(&args, &config_dir).await?;

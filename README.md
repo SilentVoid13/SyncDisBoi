@@ -8,7 +8,7 @@ SyncDisBoi is a simple and efficient tool designed to synchronize playlists acro
 SyncDisBoi is the ideal tool for music enthusiasts who want to:
 - Seamlessly migrate to a new music platform while preserving their playlists and likes
 - Keep playlists in sync across multiple platforms and enjoy each platform's unique recommendation algorithms
-- Export existing playlists in a portable JSON format for easy backup or sharing
+- Export/Import existing playlists in a portable JSON format for easy backup or sharing
 
 > **Disclaimer**: While SyncDisBoi doesn't perform any deletion operations, it's always a good practice to backup your playlists. I am not responsible for any unintended changes to your playlists.
 
@@ -60,17 +60,14 @@ Here are some command examples:
 ./sync_dis_boi \
     yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
     spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
-
 # sync from Spotify to Tidal, sync likes as well
 ./sync_dis_boi --sync-likes \
     spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
     tidal
-
 # sync from Tidal to Youtube Music, like all synchronized songs
 ./sync_dis_boi --like-all \
     tidal \
     yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>"
-
 # sync from Spotify to Youtube Music, with debug mode enabled to generate detailed statistics about the synchronization process
 ./sync_dis_boi --debug \
     spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
@@ -79,17 +76,28 @@ Here are some command examples:
 # export Spotify playlists to JSON
 ./sync_dis_boi \
     spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
-    export -d ./spotify.json
-
+    export -o ./spotify.json
 # export Youtube Music playlists to JSON
 ./sync_dis_boi \
     yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
-    export -d ./yt_music.json
-
+    export -o ./yt_music.json
 # export Tidal playlists to JSON
 ./sync_dis_boi \
     tidal \
-    export -d ./tidal.json
+    export -o ./tidal.json
+
+# import Spotify playlist from exported JSON
+./sync_dis_boi \
+    spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
+    import -i ./spotify.json
+# import Tidal playlist from exported JSON
+./sync_dis_boi \
+    tidal \
+    import -i ./tidal.json
+# import Youtube Music playlist from exported JSON
+./sync_dis_boi \
+    yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
+    import -i ./yt_music.json
 ```
 
 ### Spotify API setup
