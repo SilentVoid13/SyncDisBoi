@@ -187,14 +187,15 @@ impl TidalApi {
             return Ok(res);
         }
 
-        while res.items.len() % limit == 0 {
-            let offset = res.items.len();
+        let mut offset = limit;
+        while offset < res.total_number_of_items {
             let res2: TidalPageResponse<T> =
                 self.make_request_json(url, method, limit, offset).await?;
             if res2.items.is_empty() {
                 break;
             }
             res.items.extend(res2.items);
+            offset += limit;
         }
         Ok(res)
     }
@@ -318,6 +319,7 @@ impl MusicApi for TidalApi {
         let params = json!({
             "countryCode": self.country_code,
         });
+        // NOTE: a limit > 100 triggers a 400 error
         let res: TidalPageResponse<TidalSongItemResponse> = self
             .paginated_request(&url, &HttpMethod::Get(&params), 100)
             .await?;
@@ -438,18 +440,18 @@ impl MusicApi for TidalApi {
             Self::API_URL,
             self.user_id
         );
-        let tracks = songs
-            .iter()
-            .map(|s| s.id.as_str())
-            .collect::<Vec<_>>()
-            .join(",");
-        let params = json!({
-            "countryCode": self.country_code,
-            "trackIds": tracks,
-            "onArtifactNotFound": "FAIL",
-        });
-        self.make_request(&url, &HttpMethod::Post(&params), None)
-            .await?;
+        let tracks = songs.iter().map(|s| s.id.as_str()).collect::<Vec<_>>();
+
+        // NOTE: we get error 500 if we like too much songs at once
+        for tracks_chunk in tracks.chunks(100) {
+            let params = json!({
+                "countryCode": self.country_code,
+                "trackIds": tracks_chunk.join(","),
+                "onArtifactNotFound": "FAIL",
+            });
+            self.make_request(&url, &HttpMethod::Post(&params), None)
+                .await?;
+        }
         Ok(())
     }
 
@@ -463,7 +465,7 @@ impl MusicApi for TidalApi {
             "countryCode": self.country_code,
         });
         let res: TidalPageResponse<TidalSongItemResponse> = self
-            .paginated_request(&url, &HttpMethod::Get(&params), 100)
+            .paginated_request(&url, &HttpMethod::Get(&params), 1000)
             .await?;
         let songs: Songs = res.try_into()?;
         Ok(songs.0)

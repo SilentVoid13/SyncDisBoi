@@ -16,8 +16,11 @@ pub struct TidalOAuthDeviceRes {
 ////////////
 
 #[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct TidalPageResponse<T> {
     pub items: Vec<T>,
+    pub offset: usize,
+    pub total_number_of_items: usize,
 }
 
 #[derive(Deserialize, Debug)]

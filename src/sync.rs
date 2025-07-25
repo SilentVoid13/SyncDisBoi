@@ -61,6 +61,7 @@ pub async fn synchronize(
                 continue;
             }
             let Some(song) = dst_api.search_song(&src_like).await? else {
+                debug!("no match found for song: {}", src_like);
                 continue;
             };
             // HACK: takes into account discrepancy for YtMusic with no ISRC

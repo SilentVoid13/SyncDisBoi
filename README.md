@@ -14,16 +14,17 @@ SyncDisBoi is the ideal tool for music enthusiasts who want to:
 
 ## Tool workflow
 
-For the best experience, it is recommended to use a single "source of truth" for your playlists, a primary platform where all playlist modifications are made.
+For the best experience, it is recommended to use a single "source of truth" for your playlists, i.e. a primary platform where all playlist modifications are made and then replicated downstream.
 This ensures consistency across platforms when syncing.
 
 Note that YouTube Music is not ideal for this role due to its limited and often inaccurate song metadata (most notably missing ISRC codes), which are essential for precise song matching when synchronizing.
 
-SyncDisBoi synchronization workflow goes like this:
+SyncDisBoi synchronization workflow:
 - if the destination playlist does not exist, SyncDisBoi will create a new playlist containing the synchronized songs
 - if the destination playlist already exists, SyncDisBoi will only add songs that are not already present
 - if the `--sync-likes` option is specified, SyncDisBoi will also synchronize likes
 - if the `--like-all` option is specified, SyncDisBoi will like all synchonized songs on the destination platform
+- if the `--debug` option is specified, [debug mode](https://github.com/SilentVoid13/SyncDisBoi#debug-mode) will be enabled
 
 By default, SyncDisBoi does not remove songs. This is a safety measure to prevent accidental data loss.
 Consequently, deleting a song on the source platform and syncing will not remove it from the destination playlist.
