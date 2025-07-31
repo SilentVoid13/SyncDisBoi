@@ -1,7 +1,12 @@
 [package]
 name = "sync_dis_boi"
-version = "0.5.10"
+version = "0.6.1"
 edition = "2024"
+license-file = "LICENSE.txt"
+description = "a music streaming platform synchronization tool"
+repository = "https://github.com/SilentVoid13/SyncDisBoi"
+categories = ["command-line-utilities"]
+keywords = ["music", "spotify", "tidal", "youtube-music"]
 
 [dependencies]
 async-recursion = "1.1.1"
