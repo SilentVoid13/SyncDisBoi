@@ -11,7 +11,7 @@ keywords = ["music", "spotify", "tidal", "youtube-music"]
 [dependencies]
 async-recursion = "1.1.1"
 async-trait = "0.1.88"
-clap = { version = "*", features = ["derive", "env"] }
+clap = { version = "4.5.42", features = ["derive", "env"] }
 color-eyre = "0.6.5"
 dirs = "6.0.0"
 futures = "0.3.31"
