@@ -106,10 +106,11 @@ impl TryInto<Song> for SpotifySongResponse {
         let artists = self
             .artists
             .into_iter()
-            .filter(|a| a.id.is_some())
-            .map(|i| Artist {
-                id: Some(i.id.unwrap()),
-                name: i.name,
+            .filter_map(|i| {
+                Some(Artist {
+                    id: Some(i.id?),
+                    name: i.name,
+                })
             })
             .collect();
         let album = Album {

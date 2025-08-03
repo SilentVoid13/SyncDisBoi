@@ -1,6 +1,6 @@
 [package]
 name = "sync_dis_boi"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2024"
 license-file = "LICENSE.txt"
 description = "a music streaming platform synchronization tool"

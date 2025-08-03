@@ -88,7 +88,7 @@ impl TidalApi {
             config.debug,
         )
         .await?;
-        let country_code = me_res.data.attributes.country.unwrap();
+        let country_code = me_res.data.attributes.country.unwrap_or("US".into());
 
         Ok(Self {
             client,

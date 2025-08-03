@@ -56,7 +56,10 @@ impl TryInto<Songs> for TidalSearchResponse {
             match track.try_into() {
                 Ok(s) => res.push(s),
                 Err(e) => {
-                    error!("failed to parse song in response, skipping it: {}", e);
+                    error!(
+                        "failed to parse song in response, skipping it. error log: `{}`",
+                        e
+                    );
                     continue;
                 }
             }
@@ -81,9 +84,12 @@ impl TryInto<Playlist> for TidalPlaylistResponse {
 impl TryInto<Song> for TidalSongResponse {
     type Error = Error;
     fn try_into(self) -> Result<Song, Self::Error> {
+        let Some(album) = self.album else {
+            return Err(eyre!("{}: missing song album data", self.title));
+        };
         let album = Album {
-            id: Some(self.album.id.to_string()),
-            name: self.album.title,
+            id: Some(album.id.to_string()),
+            name: album.title,
         };
         let artists = self
             .artists
@@ -98,7 +104,7 @@ impl TryInto<Song> for TidalSongResponse {
             source: MusicApiType::Tidal,
             id: self.id.to_string(),
             sid: None,
-            isrc: Some(self.isrc.to_uppercase()),
+            isrc: self.isrc.map(|i| i.to_uppercase()),
             name: self.title,
             album: Some(album),
             artists,
@@ -175,7 +181,9 @@ fn media_data_to_song(data: TidalMediaData, included: &[TidalMediaData]) -> Resu
         if album_rel.len() != 1 {
             return Err(eyre!("invalid song with multiple albums"));
         }
-        let album_rel = album_rel.first().unwrap();
+        let Some(album_rel) = album_rel.first() else {
+            return Err(eyre!("missing song album data"));
+        };
         let album_data = included
             .iter()
             .find(|i| i.id == album_rel.id)
@@ -217,7 +225,7 @@ fn media_data_to_song(data: TidalMediaData, included: &[TidalMediaData]) -> Resu
         source: MusicApiType::Tidal,
         id: data.id,
         sid: None,
-        isrc: Some(data.attributes.isrc.ok_or_eyre("missing song isrc")?),
+        isrc: data.attributes.isrc.map(|i| i.to_uppercase()),
         name: data.attributes.title.ok_or_eyre("missing song title")?,
         album,
         artists,

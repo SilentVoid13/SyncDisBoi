@@ -7,7 +7,7 @@ pub struct SpotifyEmptyResponse {}
 #[allow(dead_code)]
 pub struct SpotifyUserResponse {
     pub country: String,
-    pub display_name: String,
+    pub display_name: Option<String>,
     pub email: String,
 }
 
@@ -52,7 +52,7 @@ pub struct SpotifyPlaylistResponse {
     pub id: String,
     pub name: String,
     #[allow(dead_code)]
-    pub public: bool,
+    pub public: Option<bool>,
 }
 
 #[derive(Deserialize, Debug)]
