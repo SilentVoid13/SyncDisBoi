@@ -61,21 +61,12 @@
               buildInputs = fnBuildInputs arch_pkgs;
             };
 
-        fnBuildInputs =
-          pkgs:
-          with pkgs;
-          [ openssl ]
-          ++ (lib.optionals stdenv.isDarwin [
-            darwin.apple_sdk.frameworks.CoreFoundation
-            darwin.apple_sdk.frameworks.CoreServices
-            darwin.apple_sdk.frameworks.SystemConfiguration
-            darwin.apple_sdk.frameworks.Security
-          ]);
+        fnBuildInputs = pkgs: with pkgs; [ openssl ];
       in
       rec {
         defaultPackage = buildPkg pkgs;
         packages.x86_64-unknown-linux-musl = buildPkg pkgs.pkgsCross.musl64.pkgsStatic;
-        packages.aarch64-multiplatform-musl = buildPkg pkgs.pkgsCross.aarch64-multiplatform-musl.pkgsStatic;
+        packages.aarch64-unknown-linux-musl = buildPkg pkgs.pkgsCross.aarch64-multiplatform-musl.pkgsStatic;
         packages.x86_64-pc-windows-gnu = buildPkg pkgs.pkgsCross.mingwW64;
 
         devShell = pkgs.mkShell {
