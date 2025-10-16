@@ -174,6 +174,8 @@ pub async fn synchronize_playlists(
                         "discrepancy, song already in destination playlist: {}",
                         dst_song
                     );
+                    attempts -= 1;
+                    success -= 1;
                     continue;
                 }
                 // Edge case: same song on different album/single that all resolve to the same
@@ -183,6 +185,8 @@ pub async fn synchronize_playlists(
                         "discrepancy, duplicate song in songs to synchronize: {}",
                         dst_song
                     );
+                    attempts -= 1;
+                    success -= 1;
                     continue;
                 }
                 if config.debug {

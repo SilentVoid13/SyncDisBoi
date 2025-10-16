@@ -29,7 +29,7 @@ impl TryInto<Playlists> for YtMusicResponse {
         let mut playlists = vec![];
         for mtrir in self
             .get_mtrirs()
-            .ok_or(eyre!("No mtrirs"))?
+            .ok_or(eyre!("No mtrirs found in response, are you authenticated? You may need to refresh your cookie/token."))?
             .iter()
             // Ignore the first "New Playlist" playlist
             // Ignore the second "Your Likes" playlist
