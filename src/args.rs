@@ -19,6 +19,10 @@ pub struct RootArgs {
     pub logging: LoggingLevel,
 }
 
+const TIDAL_DEFAULT_CLIENT_ID: &str =
+    "\x66\x58\x32\x4a\x78\x64\x6d\x6e\x74\x5a\x57\x4b\x30\x69\x78\x54";
+const TIDAL_DEFAULT_CLIENT_SECRET: &str = "\x4d\x55\x35\x75\x4f\x55\x46\x6d\x52\x45\x46\x71\x65\x48\x4a\x6e\x53\x6b\x5a\x4b\x59\x6b\x74\x4f\x56\x30\x78\x6c\x51\x58\x6c\x4c\x52\x31\x5a\x48\x62\x55\x6c\x4f\x64\x56\x68\x51\x55\x45\x78\x49\x56\x6c\x68\x42\x64\x6e\x68\x42\x5a\x7a\x30\x3d";
+
 #[derive(Subcommand, Clone, Debug)]
 #[command(subcommand_value_name = "SRC_PLATFORM")]
 pub enum MusicPlatformSrc {
@@ -60,14 +64,10 @@ pub enum MusicPlatformSrc {
     },
     Tidal {
         /// The client ID for the Tidal API application
-        #[arg(long, env = "TIDAL_CLIENT_ID", default_value = "zU4XHVVkc2tDPo4t")]
+        #[arg(long, env = "TIDAL_CLIENT_ID", default_value = TIDAL_DEFAULT_CLIENT_ID)]
         client_id: String,
         /// The client secret for the Tidal API application
-        #[arg(
-            long,
-            env = "TIDAL_CLIENT_SECRET",
-            default_value = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4="
-        )]
+        #[arg(long, env = "TIDAL_CLIENT_SECRET", default_value = TIDAL_DEFAULT_CLIENT_SECRET)]
         client_secret: String,
         /// Clear the cached tidal_oauth.json file
         #[arg(long)]
@@ -115,13 +115,9 @@ pub enum MusicPlatformDst {
     },
     Tidal {
         /// The client ID for the Tidal API application
-        #[arg(long, env = "TIDAL_CLIENT_ID", default_value = "zU4XHVVkc2tDPo4t")]
+        #[arg(long, env = "TIDAL_CLIENT_ID", default_value = TIDAL_DEFAULT_CLIENT_ID)]
         client_id: String,
-        #[arg(
-            long,
-            env = "TIDAL_CLIENT_SECRET",
-            default_value = "VJKhDFqJPqvsPVNBV6ukXTJmwlvbttP7wlMlrc72se4="
-        )]
+        #[arg(long, env = "TIDAL_CLIENT_SECRET", default_value = TIDAL_DEFAULT_CLIENT_SECRET)]
         /// The client secret for the Tidal API application
         client_secret: String,
         /// Clear the cached tidal_oauth.json file
