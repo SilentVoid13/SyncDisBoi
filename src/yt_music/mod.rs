@@ -10,6 +10,7 @@ use std::sync::LazyLock;
 use async_trait::async_trait;
 use color_eyre::eyre::{Result, eyre};
 use model::{YtMusicAddLikeResponse, YtMusicOAuthDeviceRes};
+use reqwest::Response;
 use reqwest::header::{HeaderMap, HeaderName};
 use serde::de::DeserializeOwned;
 use serde_json::json;
@@ -49,6 +50,7 @@ impl YtMusicApi {
     const OAUTH_TOKEN_URL: &'static str = "https://oauth2.googleapis.com/token";
     const OAUTH_GRANT_TYPE: &'static str = "http://oauth.net/grant_type/device/1.0";
     const OAUTH_USER_AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0 Cobalt/Version";
+    const RES_DEBUG_FILE: &'static str = "debug/yt_music_last_res.json";
 
     pub async fn new_oauth(
         client_id: &str,
@@ -64,10 +66,17 @@ impl YtMusicApi {
             .build()?;
 
         let token = if !oauth_token_path.exists() || clear_cache {
-            Self::request_token(&client, client_id, client_secret).await?
+            Self::request_token(&client, client_id, client_secret, &config).await?
         } else {
             info!("refreshing token");
-            Self::refresh_token(&client, client_id, client_secret, &oauth_token_path).await?
+            Self::refresh_token(
+                &client,
+                client_id,
+                client_secret,
+                &oauth_token_path,
+                &config,
+            )
+            .await?
         };
         // Write new token
         let mut file = std::fs::File::create(&oauth_token_path)?;
@@ -99,6 +108,7 @@ impl YtMusicApi {
         client_id: &str,
         client_secret: &str,
         oauth_token_path: &PathBuf,
+        config: &ConfigArgs,
     ) -> Result<OAuthToken> {
         let reader = std::fs::File::open(oauth_token_path)?;
         let mut oauth_token: OAuthToken = serde_json::from_reader(reader)?;
@@ -114,8 +124,12 @@ impl YtMusicApi {
             .form(&params)
             .send()
             .await?;
-        let res = res.error_for_status()?;
-        let refresh_token: OAuthRefreshToken = res.json().await?;
+        let status = res.status();
+        let refresh_token: OAuthRefreshToken = Self::debug_response_json(config, res).await?;
+        if !status.is_success() {
+            return Err(eyre!("Invalid HTTP status: {}", status));
+        }
+
         oauth_token.access_token = refresh_token.access_token;
         oauth_token.expires_in = refresh_token.expires_in;
         Ok(oauth_token)
@@ -125,6 +139,7 @@ impl YtMusicApi {
         client: &reqwest::Client,
         client_id: &str,
         client_secret: &str,
+        config: &ConfigArgs,
     ) -> Result<OAuthToken> {
         // 1. request access
         let params = json!({
@@ -136,8 +151,11 @@ impl YtMusicApi {
             .form(&params)
             .send()
             .await?;
-        let res = res.error_for_status()?;
-        let oauth_res: YtMusicOAuthDeviceRes = res.json().await?;
+        let status = res.status();
+        let oauth_res: YtMusicOAuthDeviceRes = Self::debug_response_json(config, res).await?;
+        if !status.is_success() {
+            return Err(eyre!("Invalid HTTP status: {}", status));
+        }
 
         let auth_url = format!(
             "{}?user_code={}",
@@ -158,8 +176,12 @@ impl YtMusicApi {
             .form(&params)
             .send()
             .await?;
-        let res = res.error_for_status()?;
-        let token: OAuthToken = res.json().await?;
+        let status = res.status();
+        let token: OAuthToken = Self::debug_response_json(config, res).await?;
+        if !status.is_success() {
+            return Err(eyre!("Invalid HTTP status: {}", status));
+        }
+
         Ok(token)
     }
 
@@ -239,19 +261,25 @@ impl YtMusicApi {
         let body = self.add_context(body);
         let endpoint = self.build_endpoint(path, ctoken);
         let res = self.client.post(&endpoint).json(&body).send().await?;
-        let obj = if self.config.debug {
-            let status = res.status();
+        let status = res.status();
+        let obj = Self::debug_response_json(&self.config, res).await?;
+        if !status.is_success() {
+            return Err(eyre!("Invalid HTTP status: {}", status));
+        }
+        Ok(obj)
+    }
+
+    async fn debug_response_json<T>(config: &ConfigArgs, res: Response) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        Ok(if config.debug {
             let text = res.text().await?;
-            std::fs::write("debug/yt_music_last_res.json", &text)?;
-            if status.is_client_error() || status.is_server_error() {
-                return Err(eyre!("Error: {}", text));
-            }
+            std::fs::write(Self::RES_DEBUG_FILE, &text)?;
             serde_json::from_str(&text)?
         } else {
-            let res = res.error_for_status()?;
             res.json().await?
-        };
-        Ok(obj)
+        })
     }
 
     pub fn clean_playlist_id(id: &str) -> String {

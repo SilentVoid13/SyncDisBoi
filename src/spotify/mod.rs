@@ -56,6 +56,7 @@ impl SpotifyApi {
         "playlist-modify-private",
     ];
     const LISTEN_RESPONSE: &'static str = "HTTP/1.1 200 OK\r\nContent-Length: 56\r\n\r\nAuthorization code received! You may now close this tab.";
+    const RES_DEBUG_FILE: &'static str = "debug/spotify_last_res.json";
 
     pub async fn new(
         client_id: &str,
@@ -65,10 +66,10 @@ impl SpotifyApi {
         config: ConfigArgs,
     ) -> Result<Self> {
         let token = if !oauth_token_path.exists() || clear_cache {
-            Self::request_token(client_id, client_secret).await?
+            Self::request_token(&config, client_id, client_secret).await?
         } else {
             info!("refreshing token");
-            Self::refresh_token(client_id, client_secret, &oauth_token_path).await?
+            Self::refresh_token(&config, client_id, client_secret, &oauth_token_path).await?
         };
         // Write new token
         let mut file = std::fs::File::create(&oauth_token_path)?;
@@ -91,20 +92,25 @@ impl SpotifyApi {
 
         let client = client.build()?;
 
-        let url = format!("{}/me", Self::BASE_API);
-        let res = client.get(&url).send().await?;
-        let res = res.error_for_status()?;
-        let me_res: SpotifyUserResponse = res.json().await?;
-        let country_code = me_res.country;
-
-        Ok(Self {
+        let mut spotify_api = Self {
             client,
             config,
-            country_code,
-        })
+            country_code: String::new(),
+        };
+
+        let me_res: SpotifyUserResponse = spotify_api
+            .make_request_json("/me", &HttpMethod::Get(&[]), 50, 0)
+            .await?;
+        spotify_api.country_code = me_res.country;
+
+        Ok(spotify_api)
     }
 
-    async fn request_token(client_id: &str, client_secret: &str) -> Result<OAuthToken> {
+    async fn request_token(
+        config: &ConfigArgs,
+        client_id: &str,
+        client_secret: &str,
+    ) -> Result<OAuthToken> {
         let auth_url = SpotifyApi::build_authorization_url(client_id)?;
         let auth_code = SpotifyApi::listen_for_code(&auth_url).await?;
 
@@ -120,12 +126,16 @@ impl SpotifyApi {
             .form(&params)
             .send()
             .await?;
-        let res = res.error_for_status()?;
-        let token: OAuthToken = res.json().await?;
+        let status = res.status();
+        let token = Self::debug_response_json(config, res).await?;
+        if !status.is_success() {
+            return Err(eyre!("Failed to get spotify token: status {}", status,));
+        }
         Ok(token)
     }
 
     async fn refresh_token(
+        config: &ConfigArgs,
         client_id: &str,
         client_secret: &str,
         oauth_token_path: &PathBuf,
@@ -140,9 +150,14 @@ impl SpotifyApi {
             "grant_type": "refresh_token",
             "refresh_token": &oauth_token.refresh_token,
         });
+
         let res = client.post(Self::TOKEN_URL).form(&params).send().await?;
-        let res = res.error_for_status()?;
-        let refresh_token: OAuthRefreshToken = res.json().await?;
+        let status = res.status();
+        let refresh_token: OAuthRefreshToken = Self::debug_response_json(config, res).await?;
+        if !status.is_success() {
+            return Err(eyre!("Failed to refresh spotify token: status {}", status));
+        }
+
         oauth_token.access_token = refresh_token.access_token;
         oauth_token.expires_in = refresh_token.expires_in;
         oauth_token.scope = refresh_token.scope;
@@ -233,35 +248,6 @@ impl SpotifyApi {
     }
 
     #[async_recursion]
-    async fn make_request(
-        &self,
-        path: &str,
-        method: &HttpMethod<'_>,
-        limit: usize,
-        offset: usize,
-    ) -> Result<Response> {
-        let endpoint = self.build_endpoint(path);
-
-        let mut request = match method {
-            HttpMethod::Get(p) => self.client.get(endpoint).query(p),
-            HttpMethod::Post(b) => self.client.post(endpoint).json(b),
-            HttpMethod::Put(b) => self.client.put(endpoint).json(b),
-            HttpMethod::Delete(b) => self.client.delete(endpoint).json(b),
-        };
-        request = request.query(&[("limit", limit), ("offset", offset)]);
-        let res = request.send().await?;
-        if res.status() == StatusCode::TOO_MANY_REQUESTS {
-            self.api_rate_wait(&res).await?;
-            // Retry request
-            return self.make_request(path, method, limit, offset).await;
-        }
-        let res = res.error_for_status()?;
-        if res.status() != StatusCode::OK && res.status() != StatusCode::CREATED {
-            return Err(eyre!("Invalid response: {}", res.text().await?));
-        }
-        Ok(res)
-    }
-
     async fn make_request_json<T>(
         &self,
         path: &str,
@@ -272,15 +258,40 @@ impl SpotifyApi {
     where
         T: DeserializeOwned,
     {
-        let res = self.make_request(path, method, limit, offset).await?;
-        let obj = if self.config.debug {
+        let endpoint = self.build_endpoint(path);
+
+        let mut request = match method {
+            HttpMethod::Get(p) => self.client.get(endpoint).query(p),
+            HttpMethod::Post(b) => self.client.post(endpoint).json(b),
+            HttpMethod::Put(b) => self.client.put(endpoint).json(b),
+            HttpMethod::Delete(b) => self.client.delete(endpoint).json(b),
+        };
+        request = request.query(&[("limit", limit), ("offset", offset)]);
+        let res = request.send().await?;
+        let status = res.status();
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            self.api_rate_wait(&res).await?;
+            // Retry request
+            return self.make_request_json(path, method, limit, offset).await;
+        }
+        let obj = Self::debug_response_json(&self.config, res).await?;
+        if status != StatusCode::OK && status != StatusCode::CREATED {
+            return Err(eyre!("Invalid HTTP status: {}", status));
+        }
+        Ok(obj)
+    }
+
+    async fn debug_response_json<T>(config: &ConfigArgs, res: Response) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        Ok(if config.debug {
             let text = res.text().await?;
-            std::fs::write("debug/spotify_last_res.json", &text)?;
+            std::fs::write(Self::RES_DEBUG_FILE, &text)?;
             serde_json::from_str(&text)?
         } else {
             res.json().await?
-        };
-        Ok(obj)
+        })
     }
 }
 
@@ -386,7 +397,7 @@ impl MusicApi for SpotifyApi {
         let body = json!({
             "playlist_id": playlist.id,
         });
-        self.make_request(&path, &HttpMethod::Delete(&body), 50, 0)
+        self.make_request_json::<()>(&path, &HttpMethod::Delete(&body), 50, 0)
             .await?;
         Ok(())
     }
@@ -465,7 +476,7 @@ impl MusicApi for SpotifyApi {
             let body = json!({
                 "ids": ids,
             });
-            self.make_request("/me/tracks", &HttpMethod::Put(&body), 50, 0)
+            self.make_request_json::<()>("/me/tracks", &HttpMethod::Put(&body), 50, 0)
                 .await?;
         }
         Ok(())
