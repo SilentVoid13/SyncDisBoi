@@ -109,7 +109,7 @@ impl TryInto<Song> for SpotifySongResponse {
             .filter_map(|i| {
                 Some(Artist {
                     id: Some(i.id?),
-                    name: i.name,
+                    name: i.name?,
                 })
             })
             .collect();

@@ -1,6 +1,11 @@
-use regex::Regex;
+use std::io::Write;
 
-use crate::music_api::Song;
+use color_eyre::Result;
+use regex::Regex;
+use serde::de::DeserializeOwned;
+use tracing::error;
+
+use crate::{ConfigArgs, music_api::Song};
 
 pub fn clean_enclosure(name: &str, start_tag: char, end_tag: char) -> String {
     if name.contains(start_tag) {
@@ -68,6 +73,31 @@ pub fn dedup_songs(songs: &mut Vec<Song>) -> bool {
         }
     }
     dups
+}
+
+pub async fn debug_response_json<T>(
+    config: &ConfigArgs,
+    res: reqwest::Response,
+    platform: &str,
+) -> Result<T>
+where
+    T: DeserializeOwned,
+{
+    const DEBUG_FOLDER: &str = "debug";
+
+    let res = if config.debug {
+        let text = res.text().await?;
+        std::fs::write(
+            format!("{}/{}_last_res.json", DEBUG_FOLDER, platform),
+            &text,
+        )?;
+        serde_json::from_str(&text).inspect_err(|_| {
+            let _ = std::fs::write(format!("debug/{}_last_error.json", platform), &text);
+        })?
+    } else {
+        res.json().await?
+    };
+    Ok(res)
 }
 
 #[cfg(test)]

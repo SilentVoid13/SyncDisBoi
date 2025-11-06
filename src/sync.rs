@@ -51,29 +51,7 @@ pub async fn synchronize(
     synchronize_playlists(src_playlists, &dst_api, &config).await?;
 
     if config.sync_likes {
-        info!("synchronizing likes...");
-        let src_likes = src_api.get_likes().await?;
-        let dst_likes = dst_api.get_likes().await?;
-
-        let mut new_likes = Vec::new();
-        for src_like in src_likes.into_iter() {
-            if dst_likes.contains(&src_like) {
-                continue;
-            }
-            let Some(song) = dst_api.search_song(&src_like).await? else {
-                debug!("no match found for song: {}", src_like);
-                continue;
-            };
-            // HACK: takes into account discrepancy for YtMusic with no ISRC
-            if dst_likes.contains(&song) {
-                debug!("discrepancy, song already liked: {}", song);
-                continue;
-            }
-            new_likes.push(song);
-        }
-
-        info!("synchronizing {} new likes", new_likes.len());
-        dst_api.add_likes(&new_likes).await?;
+        synchronize_likes(&src_api, &dst_api).await?;
     }
 
     Ok(())
@@ -213,7 +191,7 @@ pub async fn synchronize_playlists(
         if attempts != 0 {
             conversion_rate = success as f64 / attempts as f64;
             info!(
-                "synchronizing playlist \"{}\" [ok], {}/{} songs ({}%)",
+                "synchronizing playlist \"{}\" [ok], {}/{} songs ({:.2}%)",
                 src_playlist.name,
                 success,
                 attempts,
@@ -275,6 +253,53 @@ pub async fn synchronize_playlists(
     }
 
     info!("Synchronization complete!");
+
+    Ok(())
+}
+
+pub async fn synchronize_likes(src_api: &DynMusicApi, dst_api: &DynMusicApi) -> Result<()> {
+    info!("retrieving source likes...");
+    let src_likes = src_api.get_likes().await?;
+    info!("retrieving destination likes...");
+    let dst_likes = dst_api.get_likes().await?;
+
+    let mut new_likes = Vec::new();
+    let mut success = 0;
+    let mut attempts = 0;
+
+    info!("searching for all missing likes on destination platform...");
+    for src_like in src_likes.into_iter() {
+        if dst_likes.contains(&src_like) {
+            continue;
+        }
+        attempts += 1;
+        let Some(song) = dst_api.search_song(&src_like).await? else {
+            debug!("no match found for song: {}", src_like);
+            continue;
+        };
+        // HACK: takes into account discrepancy for YtMusic with no ISRC
+        if dst_likes.contains(&song) {
+            attempts -= 1;
+            debug!("discrepancy, song already liked: {}", song);
+            continue;
+        }
+        success += 1;
+        new_likes.push(song);
+    }
+
+    if attempts != 0 {
+        let conversion_rate = success as f64 / attempts as f64;
+        info!(
+            "synchronizing {}/{} ({:.2}%) new likes",
+            success,
+            attempts,
+            conversion_rate * 100.0
+        );
+        dst_api.add_likes(&new_likes).await?;
+        info!("[ok] synchronized new likes");
+    } else {
+        info!("[ok] no new likes to synchronize");
+    }
 
     Ok(())
 }

@@ -65,6 +65,16 @@ pub enum MusicApiType {
     Tidal,
 }
 
+impl MusicApiType {
+    pub const fn short_name(&self) -> &'static str {
+        match self {
+            MusicApiType::Spotify => "spotify",
+            MusicApiType::YtMusic => "ytmusic",
+            MusicApiType::Tidal => "tidal",
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Playlists(pub Vec<Playlist>);
 

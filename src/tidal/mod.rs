@@ -8,9 +8,8 @@ use async_trait::async_trait;
 use color_eyre::Result;
 use color_eyre::eyre::eyre;
 use model::{TidalMediaResponse, TidalMediaResponseSingle, TidalOAuthDeviceRes};
-use reqwest::Response;
 use reqwest::header::HeaderMap;
-use serde::de::DeserializeOwned;
+use serde::de::{DeserializeOwned, IgnoredAny};
 use serde_json::json;
 use tracing::info;
 
@@ -21,6 +20,7 @@ use crate::music_api::{
     Playlists, Song, Songs,
 };
 use crate::tidal::model::{TidalPlaylistCreateResponse, TidalSearchResponse};
+use crate::utils::debug_response_json;
 
 pub struct TidalApi {
     client: reqwest::Client,
@@ -43,7 +43,7 @@ impl TidalApi {
     const AUTH_URL: &'static str = "https://auth.tidal.com/v1/oauth2/device_authorization";
     const TOKEN_URL: &'static str = "https://auth.tidal.com/v1/oauth2/token";
     const SCOPE: &'static str = "r_usr w_usr w_sub";
-    const RES_DEBUG_FILE: &'static str = "debug/tidal_last_res.json";
+    const RES_DEBUG_FILENAME: &'static str = MusicApiType::Tidal.short_name();
 
     pub async fn new(
         client_id: &str,
@@ -83,7 +83,8 @@ impl TidalApi {
         let url = format!("{}/users/me", Self::API_V2_URL);
         let res = client.get(&url).send().await?;
         let status = res.status();
-        let me_res: TidalMediaResponseSingle = Self::debug_response_json(&config, res).await?;
+        let me_res: TidalMediaResponseSingle =
+            debug_response_json(&config, res, Self::RES_DEBUG_FILENAME).await?;
         if !status.is_success() {
             return Err(eyre!("Invalid HTTP status: {}", status));
         }
@@ -109,7 +110,8 @@ impl TidalApi {
         });
         let res = client.post(Self::AUTH_URL).form(&params).send().await?;
         let status = res.status();
-        let device_res: TidalOAuthDeviceRes = Self::debug_response_json(config, res).await?;
+        let device_res: TidalOAuthDeviceRes =
+            debug_response_json(config, res, Self::RES_DEBUG_FILENAME).await?;
         if !status.is_success() {
             return Err(eyre!("Invalid HTTP status: {}", status));
         }
@@ -133,7 +135,7 @@ impl TidalApi {
             .send()
             .await?;
         let status = res.status();
-        let token: OAuthToken = Self::debug_response_json(config, res).await?;
+        let token: OAuthToken = debug_response_json(config, res, Self::RES_DEBUG_FILENAME).await?;
         if !status.is_success() {
             return Err(eyre!("Invalid HTTP status: {}", status));
         }
@@ -160,7 +162,8 @@ impl TidalApi {
 
         let res = client.post(Self::TOKEN_URL).form(&params).send().await?;
         let status = res.status();
-        let refresh_token: OAuthRefreshToken = Self::debug_response_json(config, res).await?;
+        let refresh_token: OAuthRefreshToken =
+            debug_response_json(config, res, Self::RES_DEBUG_FILENAME).await?;
         if !status.is_success() {
             return Err(eyre!("Invalid HTTP status: {}", status));
         }
@@ -221,24 +224,11 @@ impl TidalApi {
 
         let res = request.send().await?;
         let status = res.status();
-        let obj = Self::debug_response_json(&self.config, res).await?;
+        let obj = debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
         if !status.is_success() {
             return Err(eyre!("Invalid HTTP status: {}", status));
         }
         Ok(obj)
-    }
-
-    async fn debug_response_json<T>(config: &ConfigArgs, res: Response) -> Result<T>
-    where
-        T: DeserializeOwned,
-    {
-        Ok(if config.debug {
-            let text = res.text().await?;
-            std::fs::write(Self::RES_DEBUG_FILE, &text)?;
-            serde_json::from_str(&text)?
-        } else {
-            res.json().await?
-        })
     }
 }
 
@@ -312,7 +302,8 @@ impl MusicApi for TidalApi {
         let res = self.client.get(&url).query(&params).send().await?;
         let status = res.status();
         let etag = res.headers().get("ETag").cloned();
-        let () = Self::debug_response_json(&self.config, res).await?;
+        let _: IgnoredAny =
+            debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
         let etag = etag.ok_or(eyre!("No ETag in Tidal Response"))?;
         if !status.is_success() {
             return Err(eyre!("Invalid HTTP status: {}", status));
@@ -333,7 +324,7 @@ impl MusicApi for TidalApi {
             .send()
             .await?;
         let status = res.status();
-        let () = Self::debug_response_json(&self.config, res).await?;
+        let () = debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
         if !status.is_success() {
             return Err(eyre!("Invalid HTTP status: {}", status));
         }
@@ -357,7 +348,7 @@ impl MusicApi for TidalApi {
         let params = json!({
             "trns": format!("trn:playlist:{}", playlist.id),
         });
-        let () = self
+        let _: IgnoredAny = self
             .make_request_json(&url, &HttpMethod::Put(&params), None)
             .await?;
         Ok(())
