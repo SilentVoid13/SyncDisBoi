@@ -31,3 +31,13 @@ strip = true
 lto = true
 # panic = "abort"
 # opt-level = "z"
+
+[lints.clippy]
+pedantic = { priority = -1, level = "deny" }
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+uninlined_format_args = "allow"
+must_use_candidate = "allow"
+struct_excessive_bools = "allow"
+too_many_lines = "allow"
+items_after_statements = "allow"

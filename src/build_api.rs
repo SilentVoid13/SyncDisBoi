@@ -29,7 +29,7 @@ macro_rules! impl_build_api {
                         ..
                     } => {
                         if let Some(headers) = headers {
-                            Box::new(YtMusicApi::new_headers(headers, args.config.clone()).await?)
+                            Box::new(YtMusicApi::new_headers(headers, args.config.clone())?)
                         } else {
                             let Some(client_id) = client_id else {
                                 return Err(eyre!("Missing Youtube Music client_id"));
@@ -103,9 +103,7 @@ impl_build_api!(MusicPlatformDst);
 impl MusicPlatformSrc {
     pub fn get_dst(&self) -> &MusicPlatformDst {
         match self {
-            Self::YtMusic { dst, .. } => dst,
-            Self::Spotify { dst, .. } => dst,
-            Self::Tidal { dst, .. } => dst,
+            Self::YtMusic { dst, .. } | Self::Spotify { dst, .. } | Self::Tidal { dst, .. } => dst,
         }
     }
 }

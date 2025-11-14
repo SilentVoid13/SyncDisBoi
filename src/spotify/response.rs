@@ -8,7 +8,10 @@ use super::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySearchResponse, SpotifySongItemResponse,
     SpotifySongResponse,
 };
-use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
+use crate::{
+    music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs},
+    utils::clean_isrc,
+};
 
 // multiples
 
@@ -28,7 +31,7 @@ where
 
     fn try_into(self) -> Result<Playlists, Self::Error> {
         let mut res = vec![];
-        for item in self.items.into_iter() {
+        for item in self.items {
             let playlist = match item.try_into() {
                 Ok(p) => p,
                 Err(e) => {
@@ -50,7 +53,7 @@ where
 
     fn try_into(self) -> Result<Songs, Self::Error> {
         let mut res = vec![];
-        for item in self.items.into_iter() {
+        for item in self.items {
             let song = match item.try_into() {
                 Ok(s) => s,
                 Err(e) => {
@@ -97,11 +100,7 @@ impl TryInto<Song> for SpotifySongResponse {
     fn try_into(self) -> Result<Song, Self::Error> {
         // not a huge fan of this error handling, but it's convenient for generics over
         // SpotifyPageResponse
-        let id = if let Some(id) = self.id {
-            id
-        } else {
-            "".to_string()
-        };
+        let id = self.id.unwrap_or_default();
 
         let artists = self
             .artists
@@ -118,11 +117,7 @@ impl TryInto<Song> for SpotifySongResponse {
             name: self.album.name,
         };
 
-        let isrc = self.external_ids.isrc.map(|isrc| {
-            // the metadata is sometimes inconsistent
-            let isrc = isrc.to_uppercase();
-            isrc.replace("-", "")
-        });
+        let isrc = clean_isrc(self.external_ids.isrc);
 
         Ok(Song {
             source: MusicApiType::Spotify,

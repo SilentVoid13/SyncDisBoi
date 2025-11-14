@@ -10,7 +10,6 @@ use std::sync::LazyLock;
 use async_trait::async_trait;
 use color_eyre::eyre::{Result, eyre};
 use model::{YtMusicAddLikeResponse, YtMusicOAuthDeviceRes};
-use reqwest::Response;
 use reqwest::header::{HeaderMap, HeaderName};
 use serde::de::DeserializeOwned;
 use serde_json::json;
@@ -97,7 +96,7 @@ impl YtMusicApi {
         if let Some(proxy) = &config.proxy {
             client = client
                 .proxy(reqwest::Proxy::all(proxy)?)
-                .danger_accept_invalid_certs(true)
+                .danger_accept_invalid_certs(true);
         }
         let client = client.build()?;
 
@@ -188,12 +187,12 @@ impl YtMusicApi {
         Ok(token)
     }
 
-    pub async fn new_headers(headers: &PathBuf, config: ConfigArgs) -> Result<Self> {
+    pub fn new_headers(headers: &PathBuf, config: ConfigArgs) -> Result<Self> {
         let header_data = std::fs::read_to_string(headers)?;
         let header_json: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(&header_data)?;
         let mut headers = HeaderMap::new();
-        for (key, val) in header_json.into_iter() {
+        for (key, val) in header_json {
             if let serde_json::Value::String(s) = val {
                 headers.insert(
                     HeaderName::from_bytes(key.to_lowercase().as_bytes())?,
@@ -211,14 +210,14 @@ impl YtMusicApi {
         if let Some(proxy) = &config.proxy {
             client = client
                 .proxy(reqwest::Proxy::all(proxy)?)
-                .danger_accept_invalid_certs(true)
+                .danger_accept_invalid_certs(true);
         }
         let client = client.build()?;
 
         Ok(YtMusicApi { client, config })
     }
 
-    fn build_endpoint(&self, path: &str, ctoken: Option<&str>) -> String {
+    fn build_endpoint(path: &str, ctoken: Option<&str>) -> String {
         let mut endpoint = format!("{}{}{}", Self::BASE_API, path, Self::BASE_PARAMS,);
         if let Some(c) = ctoken {
             std::write!(&mut endpoint, "&ctoken={c}&continuation={c}", c = c).unwrap();
@@ -226,7 +225,7 @@ impl YtMusicApi {
         endpoint
     }
 
-    fn add_context(&self, body: &serde_json::Value) -> serde_json::Value {
+    fn add_context(body: &serde_json::Value) -> serde_json::Value {
         let mut body = body.clone();
         match body.as_object_mut() {
             Some(o) => o.insert("context".to_string(), CONTEXT.clone()),
@@ -261,8 +260,8 @@ impl YtMusicApi {
     where
         T: DeserializeOwned + std::fmt::Debug,
     {
-        let body = self.add_context(body);
-        let endpoint = self.build_endpoint(path, ctoken);
+        let body = Self::add_context(body);
+        let endpoint = Self::build_endpoint(path, ctoken);
         let res = self.client.post(&endpoint).json(&body).send().await?;
         let status = res.status();
         let obj = debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
@@ -286,16 +285,13 @@ impl MusicApi for YtMusicApi {
         MusicApiType::YtMusic
     }
 
-    fn country_code(&self) -> &str {
+    fn country_code(&self) -> &'static str {
         // TODO: it seems impossible to get the country code from YtMusic
         "UNKNOWN"
     }
 
     async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist> {
-        let privacy_status = match public {
-            true => "PUBLIC",
-            false => "PRIVATE",
-        };
+        let privacy_status = if public { "PUBLIC" } else { "PRIVATE" };
         let body = json!({
             "title": name,
             "description": PLAYLIST_DESC,
@@ -337,7 +333,7 @@ impl MusicApi for YtMusicApi {
         }
 
         let mut actions = vec![];
-        for song in songs.iter() {
+        for song in songs {
             let action = json!({
                 "action": "ACTION_ADD_VIDEO",
                 "addedVideoId": song.id,
@@ -366,7 +362,7 @@ impl MusicApi for YtMusicApi {
             playlist.songs.retain(|s| s != song);
         }
         let mut actions = vec![];
-        for song in songs.iter() {
+        for song in songs {
             let action = json!({
                 "setVideoId": song.sid.as_ref().ok_or(eyre!("Song setVideoId not found"))?,
                 "removedVideoId": song.id,
@@ -407,7 +403,7 @@ impl MusicApi for YtMusicApi {
                 .await?;
             let res_song: SearchSongUnique = response.try_into()?;
             if let Some(mut res_song) = res_song.0 {
-                res_song.isrc = Some(isrc.to_string());
+                res_song.isrc = Some(isrc.clone());
                 return Ok(Some(res_song));
             }
         } else {

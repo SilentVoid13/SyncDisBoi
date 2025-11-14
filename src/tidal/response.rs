@@ -5,7 +5,10 @@ use super::model::{
     TidalMediaData, TidalMediaResponse, TidalPageResponse, TidalPlaylistResponse,
     TidalSearchResponse, TidalSongItemResponse, TidalSongResponse,
 };
-use crate::music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs};
+use crate::{
+    music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs},
+    utils::clean_isrc,
+};
 
 // multiples
 
@@ -14,7 +17,7 @@ impl TryInto<Playlists> for TidalPageResponse<TidalPlaylistResponse> {
 
     fn try_into(self) -> Result<Playlists, Self::Error> {
         let mut res = vec![];
-        for item in self.items.into_iter() {
+        for item in self.items {
             let playlist = match item.try_into() {
                 Ok(p) => p,
                 Err(e) => {
@@ -33,7 +36,7 @@ impl TryInto<Songs> for TidalPageResponse<TidalSongItemResponse> {
 
     fn try_into(self) -> Result<Songs, Self::Error> {
         let mut res = vec![];
-        for item in self.items.into_iter() {
+        for item in self.items {
             let song = match item.item.try_into() {
                 Ok(s) => s,
                 Err(e) => {
@@ -52,7 +55,7 @@ impl TryInto<Songs> for TidalSearchResponse {
 
     fn try_into(self) -> Result<Songs, Self::Error> {
         let mut res = vec![];
-        for track in self.tracks.items.into_iter() {
+        for track in self.tracks.items {
             match track.try_into() {
                 Ok(s) => res.push(s),
                 Err(e) => {
@@ -60,7 +63,6 @@ impl TryInto<Songs> for TidalSearchResponse {
                         "failed to parse song in response, skipping it. error log: `{}`",
                         e
                     );
-                    continue;
                 }
             }
         }
@@ -104,7 +106,7 @@ impl TryInto<Song> for TidalSongResponse {
             source: MusicApiType::Tidal,
             id: self.id.to_string(),
             sid: None,
-            isrc: self.isrc.map(|i| i.to_uppercase()),
+            isrc: clean_isrc(self.isrc),
             name: self.title,
             album: Some(album),
             artists,
@@ -136,7 +138,6 @@ impl TryInto<Songs> for TidalMediaResponse {
                 Ok(s) => songs.push(s),
                 Err(e) => {
                     error!("failed to parse song in response, skipping it: {}", e);
-                    continue;
                 }
             }
         }
@@ -225,7 +226,7 @@ fn media_data_to_song(data: TidalMediaData, included: &[TidalMediaData]) -> Resu
         source: MusicApiType::Tidal,
         id: data.id,
         sid: None,
-        isrc: data.attributes.isrc.map(|i| i.to_uppercase()),
+        isrc: clean_isrc(data.attributes.isrc),
         name: data.attributes.title.ok_or_eyre("missing song title")?,
         album,
         artists,

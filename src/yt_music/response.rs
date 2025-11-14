@@ -61,10 +61,8 @@ impl TryInto<Songs> for YtMusicResponse {
     fn try_into(mut self) -> Result<Songs, Self::Error> {
         let mut songs_vec = vec![];
 
-        let mrlirs = match self.get_mrlirs() {
-            Some(x) => x,
-            // No songs in the playlist
-            None => return Ok(Songs(songs_vec)),
+        let Some(mrlirs) = self.get_mrlirs() else {
+            return Ok(Songs(songs_vec));
         };
 
         for mrlir in mrlirs
@@ -128,9 +126,8 @@ impl TryInto<SearchSongs> for YtMusicResponse {
     fn try_into(mut self) -> Result<SearchSongs, Self::Error> {
         let mut songs_vec = vec![];
 
-        let mrlirs = match self.get_mrlirs() {
-            Some(x) => x,
-            None => return Ok(SearchSongs(songs_vec)),
+        let Some(mrlirs) = self.get_mrlirs() else {
+            return Ok(SearchSongs(songs_vec));
         };
 
         let re_duration = Regex::new(r"^(\d+:)*\d+:\d+$")?;
@@ -211,9 +208,8 @@ impl TryInto<SearchSongUnique> for YtMusicResponse {
     type Error = Error;
 
     fn try_into(mut self) -> Result<SearchSongUnique, Self::Error> {
-        let card_shelf = match self.get_card_shelf() {
-            Some(x) => x,
-            None => return Ok(SearchSongUnique(None)),
+        let Some(card_shelf) = self.get_card_shelf() else {
+            return Ok(SearchSongUnique(None));
         };
 
         let id = card_shelf.get_id().ok_or(eyre!("No song id"))?;

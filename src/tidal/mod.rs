@@ -76,7 +76,7 @@ impl TidalApi {
         if let Some(proxy) = &config.proxy {
             client = client
                 .proxy(reqwest::Proxy::all(proxy)?)
-                .danger_accept_invalid_certs(true)
+                .danger_accept_invalid_certs(true);
         }
         let client = client.build()?;
 

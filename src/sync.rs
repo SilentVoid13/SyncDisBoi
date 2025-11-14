@@ -108,7 +108,7 @@ pub async fn synchronize_playlists(
         info!("synchronizing playlist \"{}\" ...", src_playlist.name);
 
         // 1. Search for each song in the destination playlist
-        for src_song in src_playlist.songs.iter() {
+        for src_song in &src_playlist.songs {
             // already in destination playlist
             if dst_playlist.songs.contains(src_song) {
                 continue;
@@ -145,7 +145,7 @@ pub async fn synchronize_playlists(
         // 2. Add missing songs to the destination playlist
         if !dst_songs.is_empty() {
             let mut to_sync = Vec::new();
-            for dst_song in dst_songs.iter() {
+            for dst_song in &dst_songs {
                 // HACK: takes into account discrepancy for YtMusic with no ISRC
                 if dst_playlist.songs.contains(dst_song) {
                     debug!(
@@ -189,7 +189,7 @@ pub async fn synchronize_playlists(
 
         let mut conversion_rate = 1.0;
         if attempts != 0 {
-            conversion_rate = success as f64 / attempts as f64;
+            conversion_rate = f64::from(success) / f64::from(attempts);
             info!(
                 "synchronizing playlist \"{}\" [ok], {}/{} songs ({:.2}%)",
                 src_playlist.name,
@@ -268,7 +268,7 @@ pub async fn synchronize_likes(src_api: &DynMusicApi, dst_api: &DynMusicApi) -> 
     let mut attempts = 0;
 
     info!("searching for all missing likes on destination platform...");
-    for src_like in src_likes.into_iter() {
+    for src_like in src_likes {
         if dst_likes.contains(&src_like) {
             continue;
         }
@@ -288,7 +288,7 @@ pub async fn synchronize_likes(src_api: &DynMusicApi, dst_api: &DynMusicApi) -> 
     }
 
     if attempts != 0 {
-        let conversion_rate = success as f64 / attempts as f64;
+        let conversion_rate = f64::from(success) / f64::from(attempts);
         info!(
             "synchronizing {}/{} ({:.2}%) new likes",
             success,

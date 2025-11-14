@@ -24,7 +24,7 @@ pub trait MusicApi {
         let mut playlists = self.get_playlists_info().await?;
 
         let mut requests = vec![];
-        for playlist in playlists.iter_mut() {
+        for playlist in &mut playlists {
             requests.push(self.get_playlist_songs(&playlist.id));
         }
         let results = try_join_all(requests).await?;
@@ -47,7 +47,7 @@ pub trait MusicApi {
 
     async fn search_songs(&self, songs: &[Song]) -> Result<Vec<Option<Song>>> {
         let mut requests = vec![];
-        for song in songs.iter() {
+        for song in songs {
             requests.push(self.search_song(song));
         }
         let results = try_join_all(requests).await?;

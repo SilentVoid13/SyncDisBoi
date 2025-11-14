@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use color_eyre::Result;
 use regex::Regex;
 use serde::de::DeserializeOwned;
@@ -46,7 +44,7 @@ pub fn generic_name_clean(name: &str) -> String {
         ("è", "e"),
         ("à", "a"),
     ];
-    for (a, b) in replaces.iter() {
+    for (a, b) in replaces {
         name = name.replace(a, b);
     }
     let part_re = Regex::new(r"\((part (?:[a-zA-Z]+|[0-9]+))\)").unwrap();
@@ -58,18 +56,31 @@ pub fn generic_name_clean(name: &str) -> String {
     name.trim_end().to_string()
 }
 
+#[inline]
+pub fn clean_isrc(isrc: Option<String>) -> Option<String> {
+    if let Some(isrc) = isrc {
+        let isrc = isrc.trim().to_uppercase().replace('-', "");
+        if isrc.len() != 12 {
+            error!("invalid ISRC code found: {}, ignoring it", isrc);
+            return None;
+        }
+        return Some(isrc);
+    }
+    None
+}
+
 pub fn dedup_songs(songs: &mut Vec<Song>) -> bool {
     let mut seen = std::collections::HashSet::new();
     let mut dups = false;
     let mut i = 0;
     let mut len = songs.len();
     while i < len {
-        if !seen.insert(songs[i].id.clone()) {
+        if seen.insert(songs[i].id.clone()) {
+            i += 1;
+        } else {
             songs.remove(i);
             dups = true;
             len -= 1;
-        } else {
-            i += 1;
         }
     }
     dups
