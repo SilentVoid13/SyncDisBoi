@@ -1532,7 +1532,7 @@ dependencies = [
 
 [[package]]
 name = "sync_dis_boi"
-version = "0.6.2"
+version = "0.6.7"
 dependencies = [
  "async-recursion",
  "async-trait",

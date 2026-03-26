@@ -41,7 +41,7 @@ pub enum MusicPlatformSrc {
         /// The client secret for the Youtube API application
         #[arg(long, env = "YTMUSIC_CLIENT_SECRET", conflicts_with = "headers")]
         client_secret: Option<String>,
-        /// Clear the cached ytmusic_oauth.json file
+        /// Clear the cached `ytmusic_oauth.json` file
         #[arg(long, requires = "client_id", requires = "client_secret")]
         clear_cache: bool,
         /// The destination music platform
@@ -101,7 +101,7 @@ pub enum MusicPlatformDst {
         /// The client secret for the Youtube API application
         #[arg(long, env = "YTMUSIC_CLIENT_SECRET", conflicts_with = "headers")]
         client_secret: Option<String>,
-        /// Clear the cached ytmusic_oauth.json file
+        /// Clear the cached `ytmusic_oauth.json` file
         #[arg(long, requires = "client_id", requires = "client_secret")]
         clear_cache: bool,
     },

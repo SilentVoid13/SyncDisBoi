@@ -86,6 +86,22 @@ pub fn dedup_songs(songs: &mut Vec<Song>) -> bool {
     dups
 }
 
+/// Reads the full HTTP body. When `config.debug` is true, writes it to
+/// `debug/{platform}_last_res.json`.
+pub async fn read_response_body_debug(
+    config: &ConfigArgs,
+    res: reqwest::Response,
+    platform: &str,
+) -> Result<Vec<u8>> {
+    const DEBUG_FOLDER: &str = "debug";
+
+    let full = res.bytes().await?.to_vec();
+    if config.debug {
+        std::fs::write(format!("{DEBUG_FOLDER}/{platform}_last_res.json"), &full)?;
+    }
+    Ok(full)
+}
+
 pub async fn debug_response_json<T>(
     config: &ConfigArgs,
     res: reqwest::Response,

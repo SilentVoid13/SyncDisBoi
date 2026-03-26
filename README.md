@@ -112,6 +112,9 @@ After the first authorization, the OAuth token will be cached in `~/.config/Sync
 
 Notes:
 - After authorizing access for your Spotify account, SyncDisBoi will open the 'http://127.0.0.1:8888/callback' URL in your browser. If you get an 'Unable to connect' response this is normal as the server is quickly opened and shutdown once it receives the auth code.
+- Spotify Web API changes in February 2026 replaced playlist track endpoints with playlist item endpoints (`/playlists/{id}/items`) and migrated likes/follow operations to `/me/library`.
+- On Spotify Development Mode, playlist item details are only available for playlists you own or collaborate on. Followed-only playlists may return HTTP 403 when fetching songs, and SyncDisBoi will skip those playlist songs.
+- Spotify may omit the user `country` field on `GET /me` in Development Mode. If country checks block synchronization, use `--diff-country` to allow sync across platforms. Be aware this can reduce matching accuracy for cross-market catalogs.
 
 ### Youtube Music API setup
 

@@ -25,7 +25,7 @@ use crate::music_api::{
     Song, Songs,
 };
 use crate::spotify::model::SpotifySearchResponse;
-use crate::utils::debug_response_json;
+use crate::utils::{debug_response_json, read_response_body_debug};
 
 pub struct SpotifyApi {
     client: reqwest::Client,
@@ -102,7 +102,13 @@ impl SpotifyApi {
         let me_res: SpotifyUserResponse = spotify_api
             .make_request_json("/me", &HttpMethod::Get(&[]), 50, 0)
             .await?;
-        spotify_api.country_code = me_res.country;
+        spotify_api.country_code = me_res.country.unwrap_or_default();
+        if spotify_api.country_code.is_empty() {
+            warn!(
+                "Spotify user profile has no country (common on Web API Development Mode). \
+                 Cross-platform country checks are skipped unless you use --diff-country."
+            );
+        }
 
         Ok(spotify_api)
     }
@@ -245,6 +251,70 @@ impl SpotifyApi {
         Ok(res)
     }
 
+    /// Single `GET` page for [`GET /playlists/{id}/items`](https://developer.spotify.com/documentation/web-api/reference/get-playlists-items).
+    /// Returns `Ok(None)` on HTTP **403** (playlist followed but not owned — common under Feb 2026 Dev Mode).
+    async fn try_fetch_playlist_items_page(
+        &self,
+        path: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Option<SpotifyPageResponse<SpotifySongItemResponse>>> {
+        let platform = Self::RES_DEBUG_FILENAME;
+        loop {
+            let endpoint = Self::build_endpoint(path);
+            let request = self
+                .client
+                .get(endpoint)
+                .query(&[("limit", limit), ("offset", offset)]);
+            let res = request.send().await?;
+            let status = res.status();
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                self.api_rate_wait(&res).await?;
+                continue;
+            }
+            let body = read_response_body_debug(&self.config, res, platform).await?;
+            if status == StatusCode::FORBIDDEN {
+                if offset == 0 {
+                    warn!(
+                        "Skipping playlist (HTTP 403): Spotify Web API (Feb 2026+) only returns \
+                         tracks for playlists you **own** or **collaborate** on — not playlists you \
+                         only **follow**. Export/sync will omit this playlist's tracks. Path: {path}"
+                    );
+                } else {
+                    return Err(eyre!(
+                        "Spotify returned HTTP 403 on a later page of playlist items (offset {offset}). Path: {path}"
+                    ));
+                }
+                return Ok(None);
+            }
+            let ok = status == StatusCode::OK
+                || status == StatusCode::CREATED
+                || status == StatusCode::NO_CONTENT;
+            if !ok {
+                let preview = String::from_utf8_lossy(&body);
+                let mut chars = preview.chars();
+                let mut msg: String = chars.by_ref().take(2048).collect();
+                if chars.next().is_some() {
+                    msg.push_str("...");
+                }
+                return Err(eyre!("Spotify API error (HTTP {status}): {msg}"));
+            }
+            if body.is_empty() {
+                return Err(eyre!(
+                    "Spotify returned an empty body with HTTP {status} for {path}"
+                ));
+            }
+            let page: SpotifyPageResponse<SpotifySongItemResponse> =
+                serde_json::from_slice(&body).map_err(|e| {
+                    if self.config.debug {
+                        let _ = std::fs::write(format!("debug/{platform}_last_error.json"), &body);
+                    }
+                    eyre!("failed to parse Spotify JSON response: {e}")
+                })?;
+            return Ok(Some(page));
+        }
+    }
+
     async fn api_rate_wait(&self, res: &Response) -> Result<()> {
         let headers = res.headers();
         let sleep_time = headers
@@ -287,10 +357,30 @@ impl SpotifyApi {
             // Retry request
             return self.make_request_json(path, method, limit, offset).await;
         }
-        let obj = debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
-        if status != StatusCode::OK && status != StatusCode::CREATED {
-            return Err(eyre!("Invalid HTTP status: {}", status));
+        let platform = Self::RES_DEBUG_FILENAME;
+        let body = read_response_body_debug(&self.config, res, platform).await?;
+        let ok = status == StatusCode::OK
+            || status == StatusCode::CREATED
+            || status == StatusCode::NO_CONTENT;
+        if !ok {
+            let preview = String::from_utf8_lossy(&body);
+            let mut chars = preview.chars();
+            let mut msg: String = chars.by_ref().take(2048).collect();
+            if chars.next().is_some() {
+                msg.push_str("...");
+            }
+            return Err(eyre!("Spotify API error (HTTP {status}): {msg}"));
         }
+        let obj: T = if body.is_empty() || status == StatusCode::NO_CONTENT {
+            serde_json::from_str("null")?
+        } else {
+            serde_json::from_slice(&body).map_err(|e| {
+                if self.config.debug {
+                    let _ = std::fs::write(format!("debug/{platform}_last_error.json"), &body);
+                }
+                eyre!("failed to parse Spotify JSON response: {e}")
+            })?
+        };
         Ok(obj)
     }
 }
@@ -337,11 +427,24 @@ impl MusicApi for SpotifyApi {
     }
 
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>> {
-        let path = format!("/playlists/{}/tracks", id);
-        let res: SpotifyPageResponse<SpotifySongItemResponse> = self
-            .paginated_request(&path, HttpMethod::Get(&[]), 50)
-            .await?;
-        let songs: Songs = res.try_into()?;
+        let path = format!("/playlists/{id}/items");
+        let Some(mut page) = self.try_fetch_playlist_items_page(&path, 50, 0).await? else {
+            return Ok(vec![]);
+        };
+        while page.next.is_some() {
+            let offset = page.items.len();
+            let Some(next) = self
+                .try_fetch_playlist_items_page(&path, 50, offset)
+                .await?
+            else {
+                return Err(eyre!(
+                    "Spotify denied access when fetching the next page of playlist items \
+                     (playlist id {id}, offset {offset}) after a successful first page"
+                ));
+            };
+            page.merge(next);
+        }
+        let songs: Songs = page.try_into()?;
         Ok(songs.0)
     }
 
@@ -355,7 +458,7 @@ impl MusicApi for SpotifyApi {
             .map(|song| format!("spotify:track:{}", song.id))
             .collect();
 
-        let path = format!("/playlists/{}/tracks", playlist.id);
+        let path = format!("/playlists/{}/items", playlist.id);
         for u in uris.as_slice().chunks(100) {
             let body = json!({
                 "uris": u,
@@ -383,9 +486,9 @@ impl MusicApi for SpotifyApi {
                 json!({ "uri": uri })
             })
             .collect();
-        let path = format!("/playlists/{}/tracks", playlist.id);
+        let path = format!("/playlists/{}/items", playlist.id);
         let body = json!({
-            "tracks": uris,
+            "items": uris,
         });
         self.make_request_json::<SpotifySnapshotResponse>(&path, &HttpMethod::Delete(&body), 50, 0)
             .await?;
@@ -393,11 +496,11 @@ impl MusicApi for SpotifyApi {
     }
 
     async fn delete_playlist(&self, playlist: Playlist) -> Result<()> {
-        let path = format!("/playlists/{}/followers", playlist.id);
+        let uri = format!("spotify:playlist:{}", playlist.id);
         let body = json!({
-            "playlist_id": playlist.id,
+            "uris": [uri],
         });
-        self.make_request_json::<()>(&path, &HttpMethod::Delete(&body), 50, 0)
+        self.make_request_json::<()>("/me/library", &HttpMethod::Delete(&body), 50, 0)
             .await?;
         Ok(())
     }
@@ -472,11 +575,14 @@ impl MusicApi for SpotifyApi {
     async fn add_likes(&self, songs: &[Song]) -> Result<()> {
         // NOTE: A maximum of 50 items can be specified in one request
         for songs_chunk in songs.chunks(50) {
-            let ids: Vec<&str> = songs_chunk.iter().map(|s| s.id.as_str()).collect();
+            let uris: Vec<String> = songs_chunk
+                .iter()
+                .map(|s| format!("spotify:track:{}", s.id))
+                .collect();
             let body = json!({
-                "ids": ids,
+                "uris": uris,
             });
-            self.make_request_json::<()>("/me/tracks", &HttpMethod::Put(&body), 50, 0)
+            self.make_request_json::<()>("/me/library", &HttpMethod::Put(&body), 50, 0)
                 .await?;
         }
         Ok(())
@@ -497,19 +603,28 @@ mod tests {
 
     use super::*;
     use crate::yt_music::YtMusicApi;
+    use crate::ConfigArgs;
 
     #[tokio::test]
+    #[ignore = "requires live Spotify + YouTube Music credentials and a TestSpotify playlist"]
     async fn test_spotify_search_from_ytmusic() {
+        let config = ConfigArgs {
+            debug: false,
+            like_all: false,
+            sync_likes: false,
+            diff_country: false,
+            proxy: None,
+        };
         let yt_client_id = env::var("YTMUSIC_CLIENT_ID").unwrap();
         let yt_client_secret = env::var("YTMUSIC_CLIENT_SECRET").unwrap();
         let config_dir = dirs::config_dir().unwrap();
-        let oauth_token_path = config_dir.join("SyncDisBoi").join("ytmusic_oauth.json");
+        let yt_oauth = config_dir.join("SyncDisBoi").join("ytmusic_oauth.json");
         let ytmusic = YtMusicApi::new_oauth(
             &yt_client_id,
             &yt_client_secret,
-            oauth_token_path,
+            yt_oauth,
             false,
-            None,
+            config.clone(),
         )
         .await
         .unwrap();
@@ -520,9 +635,17 @@ mod tests {
 
         let spotify_client_id = env::var("SPOTIFY_CLIENT_ID").unwrap();
         let spotify_secret = env::var("SPOTIFY_CLIENT_SECRET").unwrap();
-        let spotify = SpotifyApi::new(&spotify_client_id, &spotify_secret, None)
-            .await
-            .unwrap();
+        let spotify_oauth = config_dir.join("SyncDisBoi").join("spotify_oauth.json");
+        let spotify = SpotifyApi::new(
+            &spotify_client_id,
+            &spotify_secret,
+            spotify_oauth,
+            SpotifyApi::REDIRECT_URI_URL,
+            false,
+            config,
+        )
+        .await
+        .unwrap();
 
         let songs = spotify.search_songs(&songs).await.unwrap();
         let correct_ids = [

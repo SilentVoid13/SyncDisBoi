@@ -1,7 +1,8 @@
 use std::convert::TryInto;
 
-use color_eyre::eyre::{Error, OptionExt, Result};
+use color_eyre::eyre::{Error, OptionExt, Result, eyre};
 use serde::Deserialize;
+use serde_json::Value;
 use tracing::{debug, error};
 
 use super::model::{
@@ -86,11 +87,24 @@ impl TryInto<Playlist> for SpotifyPlaylistResponse {
     }
 }
 
+fn value_to_spotify_track(v: Value) -> Result<SpotifySongResponse> {
+    if let Some(t) = v.get("type").and_then(Value::as_str)
+        && t != "track"
+    {
+        return Err(eyre!("skipping non-track playlist/library entry (type={t})"));
+    }
+    serde_json::from_value(v).map_err(|e| eyre!("invalid track JSON: {e}"))
+}
+
 impl TryInto<Song> for SpotifySongItemResponse {
     type Error = Error;
 
     fn try_into(self) -> Result<Song, Self::Error> {
-        self.track.ok_or_eyre("null track metadata")?.try_into()
+        let payload = self
+            .item
+            .or(self.track)
+            .ok_or_eyre("null track metadata (no item or track)")?;
+        value_to_spotify_track(payload)?.try_into()
     }
 }
 
@@ -117,7 +131,11 @@ impl TryInto<Song> for SpotifySongResponse {
             name: self.album.name,
         };
 
-        let isrc = clean_isrc(self.external_ids.isrc);
+        let isrc = clean_isrc(
+            self.external_ids
+                .as_ref()
+                .and_then(|e| e.isrc.clone()),
+        );
 
         Ok(Song {
             source: MusicApiType::Spotify,

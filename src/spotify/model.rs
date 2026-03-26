@@ -1,4 +1,5 @@
 use serde::{Deserialize, Deserializer};
+use serde_json::Value;
 
 #[derive(Deserialize, Debug)]
 pub struct SpotifyEmptyResponse {}
@@ -6,9 +7,13 @@ pub struct SpotifyEmptyResponse {}
 #[derive(Deserialize, Debug)]
 #[allow(dead_code)]
 pub struct SpotifyUserResponse {
-    pub country: String,
+    /// Omitted on Spotify Web API Development Mode (Feb 2026+); see changelog.
+    #[serde(default)]
+    pub country: Option<String>,
     pub display_name: Option<String>,
-    pub email: String,
+    /// Omitted on Spotify Web API Development Mode (Feb 2026+); see changelog.
+    #[serde(default)]
+    pub email: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -55,9 +60,14 @@ pub struct SpotifyPlaylistResponse {
     pub public: Option<bool>,
 }
 
+/// One row from `GET /playlists/{id}/items` or `GET /me/tracks`.
+/// Feb 2026+: playlist rows use `item` (track or episode); legacy `track` is still accepted.
 #[derive(Deserialize, Debug)]
 pub struct SpotifySongItemResponse {
-    pub track: Option<SpotifySongResponse>,
+    #[serde(default)]
+    pub item: Option<Value>,
+    #[serde(default)]
+    pub track: Option<Value>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -68,7 +78,9 @@ pub struct SpotifySongResponse {
     pub duration_ms: usize,
     pub artists: Vec<SpotifyArtistResponse>,
     pub album: SpotifyAlbumResponse,
-    pub external_ids: SpotifyExternalIdsResponse,
+    /// May be omitted in some API modes (see Spotify changelog).
+    #[serde(default)]
+    pub external_ids: Option<SpotifyExternalIdsResponse>,
 }
 
 #[derive(Deserialize, Debug)]
