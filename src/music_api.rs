@@ -27,9 +27,22 @@ pub trait MusicApi {
         for playlist in &mut playlists {
             requests.push(self.get_playlist_songs(&playlist.id));
         }
-        let results = try_join_all(requests).await?;
+        // Fetch songs with a bounded number of concurrent requests
+        // (order-preserving) instead of firing them all at once, which can
+        // trip platform rate limiters (e.g. Spotify 429) on large libraries.
+        use futures::stream::StreamExt;
+        let results: Vec<_> = futures::stream::iter(requests)
+            .buffered(5)
+            .collect()
+            .await;
         for (i, songs) in results.into_iter().enumerate() {
-            playlists[i].songs = songs;
+            match songs {
+                Ok(s) => playlists[i].songs = s,
+                Err(e) => {
+                    tracing::warn!("skipping non-accessible playlist \"{}\": {}", playlists[i].name, e);
+                    playlists[i].songs = vec![];
+                }
+            }
         }
 
         Ok(playlists)

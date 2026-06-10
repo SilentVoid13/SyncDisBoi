@@ -252,10 +252,17 @@ impl SpotifyApi {
             .ok_or(eyre!("Invalid Retry-After header"))?
             .to_str()?
             .parse::<u64>()?;
-        debug!(
-            "API rate limit reached, sleeping for {} seconds",
-            sleep_time
-        );
+        // Cap how long we are willing to wait on a single 429. Spotify can
+        // return a Retry-After of several hours, and silently sleeping for
+        // that long is indistinguishable from a hang (especially in cron
+        // usage). Abort instead so the caller can retry later.
+        const MAX_WAIT: u64 = 120;
+        if sleep_time > MAX_WAIT {
+            return Err(eyre!(
+                "Spotify rate limit: Retry-After {sleep_time}s exceeds cap {MAX_WAIT}s, aborting (try again later)"
+            ));
+        }
+        debug!("API rate limit reached, sleeping for {} seconds", sleep_time);
         tokio::time::sleep(Duration::from_secs(sleep_time)).await;
         Ok(())
     }
@@ -337,7 +344,7 @@ impl MusicApi for SpotifyApi {
     }
 
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>> {
-        let path = format!("/playlists/{}/tracks", id);
+        let path = format!("/playlists/{}/items", id);
         let res: SpotifyPageResponse<SpotifySongItemResponse> = self
             .paginated_request(&path, HttpMethod::Get(&[]), 50)
             .await?;
