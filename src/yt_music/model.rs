@@ -295,6 +295,7 @@ pub struct ItemSectionRendererContent {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GridRenderer {
+    #[serde(default)]
     pub items: Vec<Item2>,
     pub continuations: Option<[Continuation; 1]>,
 }

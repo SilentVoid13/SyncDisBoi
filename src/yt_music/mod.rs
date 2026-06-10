@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use color_eyre::eyre::{Result, eyre};
 use model::{YtMusicAddLikeResponse, YtMusicOAuthDeviceRes};
 use reqwest::header::{HeaderMap, HeaderName};
+use sha1::{Digest, Sha1};
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use tracing::info;
@@ -202,6 +203,34 @@ impl YtMusicApi {
         }
         headers.remove("accept-encoding");
         headers.remove("content-encoding");
+
+        // Compute a fresh classic SAPISIDHASH from the SAPISID cookie so the
+        // captured (timestamped) browser authorization does not expire. The
+        // server still accepts the classic ytmusicapi-style hash.
+        if let Some(cookie) = headers
+            .get("cookie")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned)
+        {
+            let sapisid = cookie
+                .split(';')
+                .filter_map(|kv| kv.trim().split_once('='))
+                .find(|(k, _)| *k == "SAPISID" || *k == "__Secure-3PAPISID")
+                .map(|(_, v)| v.to_owned());
+            if let Some(sapisid) = sapisid {
+                let ts = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_err(|e| eyre!(e))?
+                    .as_secs();
+                let origin = "https://music.youtube.com";
+                let mut hasher = Sha1::new();
+                hasher.update(format!("{ts} {sapisid} {origin}").as_bytes());
+                let digest = hex::encode(hasher.finalize());
+                let auth = format!("SAPISIDHASH {ts}_{digest}");
+                headers.insert("authorization", auth.parse()?);
+                info!("yt-music: computed fresh SAPISIDHASH authorization");
+            }
+        }
 
         let mut client = reqwest::ClientBuilder::new()
             .cookie_store(true)
