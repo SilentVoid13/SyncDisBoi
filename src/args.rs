@@ -79,6 +79,22 @@ pub enum MusicPlatformSrc {
         #[command(subcommand)]
         dst: MusicPlatformDst,
     },
+    /// Merge several canonical exports into a single platform-agnostic file.
+    ///
+    /// Inputs are processed in priority order (list ISRC-rich platforms such as
+    /// Tidal/Spotify first); on a duplicate the earlier input's copy is kept.
+    Merge {
+        /// Canonical JSON exports to merge, in priority order (ISRC-rich first).
+        /// Repeat the flag for each input.
+        #[arg(short = 'i', long = "input", required = true)]
+        inputs: Vec<PathBuf>,
+        /// The path to write the merged canonical file to
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Minify the merged JSON file
+        #[arg(long, default_value = "false")]
+        minify: bool,
+    },
 }
 
 // INFO: Hack to support command chaining with clap

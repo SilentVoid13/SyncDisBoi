@@ -3,12 +3,13 @@ mod build_api;
 
 use std::path::Path;
 
-use args::{MusicPlatformDst, RootArgs};
+use args::{MusicPlatformDst, MusicPlatformSrc, RootArgs};
 use build_api::BuildApi;
 use clap::Parser;
 use color_eyre::eyre::{Result, eyre};
 use sync_dis_boi::export::export;
 use sync_dis_boi::import::import;
+use sync_dis_boi::merge::merge;
 use sync_dis_boi::sync::synchronize;
 use tracing::{Level, debug, info};
 use tracing_subscriber::filter::Targets;
@@ -32,6 +33,17 @@ async fn main() -> Result<()> {
         .with(filter)
         .init();
     debug!("logging level: {}", level);
+
+    // `merge` is a pure file operation: no API, no auth, no config dir needed.
+    if let MusicPlatformSrc::Merge {
+        inputs,
+        output,
+        minify,
+    } = &args.src
+    {
+        merge(inputs, output, *minify)?;
+        return Ok(());
+    }
 
     let config_dir = dirs::config_dir().ok_or(eyre!("couldn't find system config dir"))?;
     let config_dir = config_dir.join("SyncDisBoi");

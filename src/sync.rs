@@ -7,7 +7,7 @@ use crate::music_api::{DynMusicApi, MusicApiType, Playlist, Song};
 use crate::utils::dedup_songs;
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
-const SKIPPED_PLAYLISTS: [&str; 10] = [
+pub const SKIPPED_PLAYLISTS: [&str; 12] = [
     // Yt Music specific
     "New playlist",
     "Your Likes",
@@ -20,6 +20,9 @@ const SKIPPED_PLAYLISTS: [&str; 10] = [
     "Big Room House Mix",
     "Motivation Electronic Mix",
     "High Energy Mix",
+    // test playlists
+    "TestSpotify",
+    "SyncDisBoi-TestPlaylist",
 ];
 
 pub async fn synchronize(

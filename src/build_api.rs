@@ -106,6 +106,9 @@ impl MusicPlatformSrc {
     pub fn get_dst(&self) -> &MusicPlatformDst {
         match self {
             Self::YtMusic { dst, .. } | Self::Spotify { dst, .. } | Self::Tidal { dst, .. } => dst,
+            // `Merge` is a terminal file operation handled in `main` before any
+            // destination is resolved, so this is never reached.
+            Self::Merge { .. } => unreachable!("merge has no destination platform"),
         }
     }
 }
