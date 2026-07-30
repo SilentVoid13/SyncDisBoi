@@ -54,7 +54,7 @@ pub async fn synchronize(
     synchronize_playlists(src_playlists, &dst_api, &config).await?;
 
     if config.sync_likes {
-        synchronize_likes(&src_api, &dst_api).await?;
+        synchronize_likes(&src_api, &dst_api, &config).await?;
     }
 
     Ok(())
@@ -265,13 +265,18 @@ pub async fn synchronize_playlists(
     Ok(())
 }
 
-pub async fn synchronize_likes(src_api: &DynMusicApi, dst_api: &DynMusicApi) -> Result<()> {
+pub async fn synchronize_likes(
+    src_api: &DynMusicApi,
+    dst_api: &DynMusicApi,
+    config: &ConfigArgs,
+) -> Result<()> {
     info!("retrieving source likes...");
     let src_likes = src_api.get_likes().await?;
     info!("retrieving destination likes...");
     let dst_likes = dst_api.get_likes().await?;
 
     let mut new_likes = Vec::new();
+    let mut missing_likes = json!([]);
     let mut success = 0;
     let mut attempts = 0;
 
@@ -283,6 +288,9 @@ pub async fn synchronize_likes(src_api: &DynMusicApi, dst_api: &DynMusicApi) -> 
         attempts += 1;
         let Some(song) = dst_api.search_song(&src_like).await? else {
             debug!("no match found for song: {}", src_like);
+            if config.debug {
+                missing_likes.as_array_mut().unwrap().push(json!(src_like));
+            }
             continue;
         };
         // HACK: takes into account discrepancy for YtMusic with no ISRC
@@ -293,6 +301,13 @@ pub async fn synchronize_likes(src_api: &DynMusicApi, dst_api: &DynMusicApi) -> 
         }
         success += 1;
         new_likes.push(song);
+    }
+
+    if config.debug && !missing_likes.as_array().unwrap().is_empty() {
+        std::fs::write(
+            "debug/missing_likes.json",
+            serde_json::to_string_pretty(&missing_likes)?,
+        )?;
     }
 
     if attempts != 0 {
