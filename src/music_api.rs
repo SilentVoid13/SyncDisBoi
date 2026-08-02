@@ -113,6 +113,16 @@ pub trait MusicApi {
 
     async fn add_likes(&self, songs: &[Song]) -> Result<()>;
     async fn get_likes(&self) -> Result<Vec<Song>>;
+
+    /// Attempts to discover additional ISRCs for `song` by re-querying
+    /// under alternate markets/storefronts. Populates `song.isrc` with any
+    /// newly found codes (existing codes are preserved; duplicates are
+    /// skipped). Default: no-op. Only Spotify currently has documented
+    /// per-market ISRC variance (track relinking); other platforms don't
+    /// need this.
+    async fn enrich_isrc(&self, _song: &mut Song, _markets: &[String]) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
