@@ -18,6 +18,7 @@ use tracing::{debug, info, warn};
 
 use self::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySnapshotResponse, SpotifySongItemResponse,
+    SpotifySongResponse,
 };
 use crate::ConfigArgs;
 use crate::music_api::{
@@ -25,7 +26,7 @@ use crate::music_api::{
     Song, Songs,
 };
 use crate::spotify::model::SpotifySearchResponse;
-use crate::utils::debug_response_json;
+use crate::utils::{clean_isrc, debug_response_json};
 
 pub struct SpotifyApi {
     client: reqwest::Client,
@@ -505,6 +506,39 @@ impl MusicApi for SpotifyApi {
             }
         }
         return Ok(None);
+    }
+
+    async fn enrich_isrc(&self, song: &mut Song, markets: &[String]) -> Result<()> {
+        let path = format!("/tracks/{}", song.id);
+        for market in markets {
+            // Already implicitly tried via the account's own market.
+            if market.eq_ignore_ascii_case(&self.country_code) {
+                continue;
+            }
+            let res: SpotifySongResponse = match self
+                .make_request_json(&path, &HttpMethod::Get(&[("market", market.as_str())]), 50, 0)
+                .await
+            {
+                Ok(res) => res,
+                Err(e) => {
+                    debug!(
+                        "failed to look up ISRC for song {} in market {}: {}, skipping",
+                        song.id, market, e
+                    );
+                    continue;
+                }
+            };
+            match clean_isrc(res.external_ids.isrc) {
+                Some(isrc) if !song.isrc.contains(&isrc) => song.isrc.push(isrc),
+                _ => {
+                    debug!(
+                        "no new ISRC found for song {} in market {}",
+                        song.id, market
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn add_likes(&self, songs: &[Song]) -> Result<()> {
