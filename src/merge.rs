@@ -16,7 +16,7 @@ fn song_sort_key(song: &Song) -> (String, String, String, String) {
     (
         artist,
         song.name.to_lowercase(),
-        song.isrc.clone().unwrap_or_default(),
+        song.isrc.first().cloned().unwrap_or_default(),
         song.id.clone(),
     )
 }
@@ -117,7 +117,7 @@ mod tests {
             source,
             id: id.to_string(),
             sid: None,
-            isrc: isrc.map(str::to_string),
+            isrc: isrc.map(str::to_string).into_iter().collect(),
             name: name.to_string(),
             album: None,
             artists: vec![],
@@ -202,7 +202,7 @@ mod tests {
         let a = rock
             .songs
             .iter()
-            .find(|s| s.isrc.as_deref() == Some("AAAAA1111111"))
+            .find(|s| s.isrc.first().map(String::as_str) == Some("AAAAA1111111"))
             .unwrap();
         assert_eq!(a.source, MusicApiType::Tidal);
         assert_eq!(a.id, "t1");

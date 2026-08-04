@@ -106,7 +106,10 @@ pub struct Song {
     pub source: MusicApiType,
     pub id: String,
     pub sid: Option<String>,
-    pub isrc: Option<String>,
+    /// All valid ISRCs known for this song. Usually a single value, but a
+    /// recording can legitimately have more than one (e.g. reissue codes);
+    /// `compare()` matches if either side has any code in common.
+    pub isrc: Vec<String>,
     pub name: String,
     pub album: Option<Album>,
     pub artists: Vec<Artist>,
@@ -139,8 +142,8 @@ impl Song {
         if self.source == other.source {
             return self.id == other.id;
         }
-        if self.isrc.is_some() && other.isrc.is_some() {
-            return self.isrc == other.isrc;
+        if !self.isrc.is_empty() && !other.isrc.is_empty() {
+            return self.isrc.iter().any(|i| other.isrc.contains(i));
         }
 
         // Check song name resemblance
@@ -290,4 +293,44 @@ pub struct OAuthRefreshToken {
     pub expires_in: u64,
     pub scope: String,
     pub token_type: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn song(source: MusicApiType, id: &str, isrc: &[&str], duration_ms: usize) -> Song {
+        Song {
+            source,
+            id: id.to_string(),
+            sid: None,
+            isrc: isrc.iter().copied().map(str::to_string).collect(),
+            name: "Same Name".to_string(),
+            album: None,
+            artists: vec![],
+            duration_ms,
+        }
+    }
+
+    #[test]
+    fn compare_matches_when_either_side_has_an_overlapping_isrc() {
+        // e.g. a Tidal recording tagged with multiple reissue ISRCs, one
+        // of which happens to be the single ISRC the other platform reports.
+        let a = song(
+            MusicApiType::Tidal,
+            "sub-1",
+            &["GBBTF0400057", "USSM19501100"],
+            200_000,
+        );
+        let b = song(MusicApiType::Spotify, "sp-1", &["USSM19501100"], 999_000);
+        assert!(a.compare(&b));
+        assert!(b.compare(&a));
+    }
+
+    #[test]
+    fn compare_rejects_when_isrcs_are_present_but_disjoint() {
+        let a = song(MusicApiType::Tidal, "sub-1", &["AAAAA1111111"], 200_000);
+        let b = song(MusicApiType::Spotify, "sp-1", &["BBBBB2222222"], 200_000);
+        assert!(!a.compare(&b));
+    }
 }

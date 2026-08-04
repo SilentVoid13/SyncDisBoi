@@ -414,9 +414,7 @@ impl MusicApi for SpotifyApi {
         let max_len = 100;
         let mut queries = vec![];
 
-        if let Some(isrc) = &song.isrc {
-            queries.push(format!("isrc:{}", isrc));
-        } else {
+        if song.isrc.is_empty() {
             let mut track_query = format!("track:\"{}\"", song.clean_name());
             if track_query.len() > max_len {
                 warn!(
@@ -457,6 +455,10 @@ impl MusicApi for SpotifyApi {
                         format!("{} {} {}", track_query, artist_query, album_query);
                     push_query(&mut queries, tr_ar_al_query, max_len);
                 }
+            }
+        } else {
+            for isrc in &song.isrc {
+                queries.push(format!("isrc:{}", isrc));
             }
         }
 
