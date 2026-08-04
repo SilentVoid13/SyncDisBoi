@@ -36,4 +36,10 @@ pub struct ConfigArgs {
     /// Proxy to use for all requests in the format http://<ip>:<port>
     #[arg(long)]
     pub proxy: Option<String>,
+
+    /// Maximum number of song searches to run concurrently against the
+    /// destination platform. Higher values speed up synchronization but
+    /// increase the chance of hitting the destination API's rate limits.
+    #[arg(long, default_value = "8")]
+    pub search_concurrency: usize,
 }

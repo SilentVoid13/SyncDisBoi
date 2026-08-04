@@ -514,6 +514,7 @@ mod tests {
             sync_likes: false,
             diff_country: false,
             proxy: None,
+            search_concurrency: 8,
         }
     }
 
