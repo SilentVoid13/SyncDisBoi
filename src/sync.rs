@@ -312,7 +312,18 @@ pub async fn synchronize_likes(
     attempts += i32::try_from(to_search.len()).unwrap_or(i32::MAX);
     let search_results: Vec<(Song, Result<Option<Song>>)> = stream::iter(to_search)
         .map(|src_like| async move {
-            let result = dst_api.search_song(&src_like).await;
+            let mut result = dst_api.search_song(&src_like).await;
+            if config.isrc_enrich && matches!(result, Ok(None)) {
+                let mut enriched = src_like.clone();
+                if src_api
+                    .enrich_isrc(&mut enriched, &config.isrc_markets)
+                    .await
+                    .is_ok()
+                    && enriched.isrc.len() > src_like.isrc.len()
+                {
+                    result = dst_api.search_song(&enriched).await;
+                }
+            }
             (src_like, result)
         })
         .buffered(config.search_concurrency.max(1))
