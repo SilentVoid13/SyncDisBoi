@@ -291,6 +291,33 @@ impl<'a> SongIndex<'a> {
     }
 }
 
+/// Picks the best-matching candidate from `candidates` for `song`. With
+/// `strip_qualifiers` true (the default), returns the first candidate that
+/// passes `compare()` -- identical to the "first result that matches" loops
+/// every platform's `search_song()` used to run inline. With it false,
+/// evaluates every candidate, keeps the ones passing `compare()`, and
+/// returns the one whose *raw* (qualifier-preserving) name is closest to
+/// `song`'s. Otherwise a remix and its original both matching on stripped
+/// name get picked arbitrarily by search-result order, which is what
+/// silently produced wrong/missed matches.
+pub fn pick_best_match(
+    song: &Song,
+    mut candidates: impl Iterator<Item = Song>,
+    strip_qualifiers: bool,
+) -> Option<Song> {
+    if strip_qualifiers {
+        return candidates.find(|c| song.compare(c, strip_qualifiers));
+    }
+    let song_raw = song.raw_clean_name();
+    candidates
+        .filter(|c| song.compare(c, strip_qualifiers))
+        .max_by(|a, b| {
+            let score_a = name_score(&song_raw, &a.raw_clean_name());
+            let score_b = name_score(&song_raw, &b.raw_clean_name());
+            score_a.total_cmp(&score_b)
+        })
+}
+
 impl PartialEq for Song {
     fn eq(&self, other: &Self) -> bool {
         // `strip_qualifiers` doesn't have a config to read here; every
@@ -476,5 +503,53 @@ mod tests {
         needle.name = "Nothing Like It".to_string();
         assert!(!haystack.contains(&needle));
         assert!(!index.contains(&needle, true));
+    }
+
+    #[test]
+    fn pick_best_match_returns_first_pass_when_strip_qualifiers_true() {
+        let mut query = song(MusicApiType::Spotify, "sp-1", &[], 538_700);
+        query.name = "Circus Bells - Hardfloor Mix".to_string();
+
+        let mut wrong_first = song(MusicApiType::Tidal, "sub-1", &[], 538_900);
+        wrong_first.name = "Circus Bells (Totally Unrelated Remix)".to_string();
+        let mut correct = song(MusicApiType::Tidal, "sub-2", &[], 538_200);
+        correct.name = "Circus Bells (Hardfloor Remix)".to_string();
+
+        let candidates = vec![wrong_first.clone(), correct.clone()];
+
+        // With qualifiers stripped, both candidates' names collapse to
+        // "circus bells" and the first one in iteration order wins -- the
+        // exact bug this feature addresses.
+        let picked = pick_best_match(&query, candidates.into_iter(), true).unwrap();
+        assert_eq!(picked.id, wrong_first.id);
+    }
+
+    #[test]
+    fn pick_best_match_prefers_closest_raw_name_when_strip_qualifiers_false() {
+        let mut query = song(MusicApiType::Spotify, "sp-1", &[], 538_700);
+        query.name = "Circus Bells - Hardfloor Mix".to_string();
+
+        let mut wrong_first = song(MusicApiType::Tidal, "sub-1", &[], 538_900);
+        wrong_first.name = "Circus Bells (Totally Unrelated Remix)".to_string();
+        let mut correct = song(MusicApiType::Tidal, "sub-2", &[], 538_200);
+        correct.name = "Circus Bells (Hardfloor Remix)".to_string();
+
+        let candidates = vec![wrong_first, correct.clone()];
+
+        // With qualifiers preserved, the raw name ranks the two candidates
+        // and correctly prefers the one that actually shares "hardfloor".
+        let picked = pick_best_match(&query, candidates.into_iter(), false).unwrap();
+        assert_eq!(picked.id, correct.id);
+    }
+
+    #[test]
+    fn pick_best_match_returns_none_when_no_candidate_passes() {
+        let mut query = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        query.name = "Totally Different".to_string();
+        let mut candidate = song(MusicApiType::Tidal, "sub-1", &[], 900_000);
+        candidate.name = "Unrelated".to_string();
+
+        assert!(pick_best_match(&query, vec![candidate.clone()].into_iter(), true).is_none());
+        assert!(pick_best_match(&query, vec![candidate].into_iter(), false).is_none());
     }
 }
