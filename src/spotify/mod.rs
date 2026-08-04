@@ -456,6 +456,32 @@ impl MusicApi for SpotifyApi {
                     push_query(&mut queries, tr_ar_al_query, max_len);
                 }
             }
+
+            // With qualifiers preserved, also try the raw (unstripped)
+            // track name -- see Song::build_queries for the same rationale.
+            if !self.config.strip_qualifiers {
+                let raw_track_name = song.raw_clean_name();
+                if raw_track_name != song.clean_name() {
+                    let mut raw_track_query = format!("track:\"{}\"", raw_track_name);
+                    if raw_track_query.len() > max_len {
+                        raw_track_query = raw_track_query[..max_len].to_string();
+                    }
+                    if let Some(album_query) = album_query.as_ref() {
+                        push_query(
+                            &mut queries,
+                            format!("{} {}", raw_track_query, album_query),
+                            max_len,
+                        );
+                    }
+                    for artist_query in artist_queries.iter().rev() {
+                        push_query(
+                            &mut queries,
+                            format!("{} {}", raw_track_query, artist_query),
+                            max_len,
+                        );
+                    }
+                }
+            }
         } else {
             for isrc in &song.isrc {
                 queries.push(format!("isrc:{}", isrc));
@@ -469,10 +495,12 @@ impl MusicApi for SpotifyApi {
                 .await?;
             let res_songs: Songs = res.try_into()?;
             // iterate over top 3 results
-            for res_song in res_songs.0.into_iter().take(3) {
-                if song.compare(&res_song, self.config.strip_qualifiers) {
-                    return Ok(Some(res_song));
-                }
+            if let Some(best) = crate::music_api::pick_best_match(
+                song,
+                res_songs.0.into_iter().take(3),
+                self.config.strip_qualifiers,
+            ) {
+                return Ok(Some(best));
             }
         }
         return Ok(None);
