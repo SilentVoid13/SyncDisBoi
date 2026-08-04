@@ -515,6 +515,7 @@ mod tests {
             diff_country: false,
             proxy: None,
             search_concurrency: 8,
+            strip_qualifiers: true,
         }
     }
 
