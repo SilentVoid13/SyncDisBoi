@@ -7,11 +7,15 @@ use serde::{Deserialize, Serialize};
 use strsim::normalized_levenshtein;
 use tracing::debug;
 
-use crate::utils::generic_name_clean;
+use crate::utils::{generic_name_clean, normalize_name};
 
 pub const PLAYLIST_DESC: &str = "Playlist created by SyncDisBoi";
 
 pub type DynMusicApi = Box<dyn MusicApi + Sync>;
+
+fn name_score(a: &str, b: &str) -> f64 {
+    normalized_levenshtein(a, b).abs()
+}
 
 #[async_trait]
 pub trait MusicApi {
@@ -129,6 +133,14 @@ impl Song {
                 name.trim_end().to_string()
             }
         }
+    }
+
+    /// Basic-normalized name with qualifier stripping skipped: used as a
+    /// second comparison signal when `--strip-qualifiers=false`, so
+    /// remix/version qualifiers remain available to disambiguate songs
+    /// that would otherwise collapse to the same `clean_name()`.
+    pub fn raw_clean_name(&self) -> String {
+        normalize_name(&self.name)
     }
 
     pub fn is_single(&self) -> bool {
@@ -358,6 +370,14 @@ mod tests {
             artists: vec![],
             duration_ms,
         }
+    }
+
+    #[test]
+    fn raw_clean_name_preserves_qualifiers_that_clean_name_strips() {
+        let mut s = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        s.name = "Circus Bells (Hardfloor Remix)".to_string();
+        assert_eq!(s.clean_name(), "circus bells");
+        assert_eq!(s.raw_clean_name(), "circus bells (hardfloor remix)");
     }
 
     #[test]
