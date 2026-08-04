@@ -157,7 +157,14 @@ impl Song {
             return self.id == other.id;
         }
         if !self.isrc.is_empty() && !other.isrc.is_empty() {
-            return self.isrc.iter().any(|i| other.isrc.contains(i));
+            let isrc_overlap = self.isrc.iter().any(|i| other.isrc.contains(i));
+            if isrc_overlap {
+                return true;
+            }
+            // NOTE: don't bail out here. Reissues, remasters, and regional
+            // releases legitimately get a different ISRC for the same
+            // recording, so fall through to the name/duration/album checks
+            // below instead of treating a mismatched ISRC as conclusive.
         }
 
         // Check song name resemblance. With strip_qualifiers=false, also
@@ -482,8 +489,18 @@ mod tests {
     }
 
     #[test]
-    fn compare_rejects_when_isrcs_are_present_but_disjoint() {
+    fn compare_falls_back_to_name_and_duration_when_isrcs_are_disjoint() {
+        // e.g. a remaster or regional reissue: same recording, but the
+        // ISRC differs, so ISRC alone can't rule it out.
         let a = song(MusicApiType::Tidal, "sub-1", &["AAAAA1111111"], 200_000);
+        let b = song(MusicApiType::Spotify, "sp-1", &["BBBBB2222222"], 200_000);
+        assert!(a.compare(&b, true));
+    }
+
+    #[test]
+    fn compare_rejects_when_isrcs_are_disjoint_and_names_or_durations_differ() {
+        let mut a = song(MusicApiType::Tidal, "sub-1", &["AAAAA1111111"], 200_000);
+        a.name = "Totally Different Song".to_string();
         let b = song(MusicApiType::Spotify, "sp-1", &["BBBBB2222222"], 200_000);
         assert!(!a.compare(&b, true));
     }
