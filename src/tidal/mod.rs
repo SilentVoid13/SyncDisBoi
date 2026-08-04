@@ -390,7 +390,7 @@ impl MusicApi for TidalApi {
             let res_songs: Songs = res.try_into()?;
             // iterate over top 3 results
             for res_song in res_songs.0.into_iter().take(3) {
-                if song.compare(&res_song) {
+                if song.compare(&res_song, self.config.strip_qualifiers) {
                     return Ok(Some(res_song));
                 }
             }
