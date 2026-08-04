@@ -376,7 +376,7 @@ impl MusicApi for TidalApi {
         }
 
         let url = format!("{}/v1/search", Self::API_URL);
-        let mut queries = song.build_queries();
+        let mut queries = song.build_queries(self.config.strip_qualifiers);
 
         while let Some(query) = queries.pop() {
             let params = json!({
@@ -389,10 +389,12 @@ impl MusicApi for TidalApi {
                 .await?;
             let res_songs: Songs = res.try_into()?;
             // iterate over top 3 results
-            for res_song in res_songs.0.into_iter().take(3) {
-                if song.compare(&res_song, self.config.strip_qualifiers) {
-                    return Ok(Some(res_song));
-                }
+            if let Some(best) = crate::music_api::pick_best_match(
+                song,
+                res_songs.0.into_iter().take(3),
+                self.config.strip_qualifiers,
+            ) {
+                return Ok(Some(best));
             }
         }
         Ok(None)

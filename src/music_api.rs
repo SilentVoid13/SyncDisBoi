@@ -213,7 +213,7 @@ impl Song {
         true
     }
 
-    pub fn build_queries(&self) -> Vec<String> {
+    pub fn build_queries(&self, strip_qualifiers: bool) -> Vec<String> {
         let mut queries = vec![];
         let track_name = self.clean_name();
 
@@ -238,6 +238,26 @@ impl Song {
                 queries.push(tr_ar_al_query);
             }
         }
+
+        // With qualifiers preserved, also try the raw (unstripped) track
+        // name -- the remix/version text stripped out of `track_name`
+        // above is often literally present in the destination platform's
+        // title too, so keeping it in the query text improves recall for
+        // exactly the tracks that collapse under the stripped name.
+        if !strip_qualifiers {
+            let raw_track_name = self.raw_clean_name();
+            if raw_track_name != track_name {
+                if let Some(album) = self.album.as_ref() {
+                    let album_name = album.clean_name();
+                    queries.push(format!("{} {}", raw_track_name, album_name));
+                }
+                for artist in self.artists.iter().rev() {
+                    let artist_name = artist.clean_name();
+                    queries.push(format!("{} {}", raw_track_name, artist_name));
+                }
+            }
+        }
+
         queries
     }
 }
@@ -422,6 +442,28 @@ mod tests {
         s.name = "Circus Bells (Hardfloor Remix)".to_string();
         assert_eq!(s.clean_name(), "circus bells");
         assert_eq!(s.raw_clean_name(), "circus bells (hardfloor remix)");
+    }
+
+    #[test]
+    fn build_queries_adds_raw_variants_only_when_strip_qualifiers_false() {
+        let mut s = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        s.name = "Track - Remix".to_string();
+        s.album = Some(Album {
+            id: None,
+            name: "Some Album".to_string(),
+        });
+        s.artists = vec![Artist {
+            id: None,
+            name: "Some Artist".to_string(),
+        }];
+
+        let stripped_queries = s.build_queries(true);
+        assert!(!stripped_queries.iter().any(|q| q.contains("remix")));
+
+        let raw_queries = s.build_queries(false);
+        assert!(raw_queries.iter().any(|q| q.contains("track - remix")));
+        // stripped variants are still present too -- recall only improves
+        assert!(raw_queries.len() > stripped_queries.len());
     }
 
     #[test]

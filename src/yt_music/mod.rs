@@ -426,7 +426,7 @@ impl MusicApi for YtMusicApi {
         if song.isrc.is_empty() {
             let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
             let params = format!("EgWKAQ{}{}", "II", ignore_spelling);
-            let mut queries = song.build_queries();
+            let mut queries = song.build_queries(self.config.strip_qualifiers);
             while let Some(query) = queries.pop() {
                 let body = json!({
                     "query": query,
@@ -437,10 +437,12 @@ impl MusicApi for YtMusicApi {
                     .await?;
                 let res_songs: SearchSongs = response.try_into()?;
                 // iterate over top 3 results
-                for res_song in res_songs.0.into_iter().take(3) {
-                    if song.compare(&res_song, self.config.strip_qualifiers) {
-                        return Ok(Some(res_song));
-                    }
+                if let Some(best) = crate::music_api::pick_best_match(
+                    song,
+                    res_songs.0.into_iter().take(3),
+                    self.config.strip_qualifiers,
+                ) {
+                    return Ok(Some(best));
                 }
             }
         } else {
