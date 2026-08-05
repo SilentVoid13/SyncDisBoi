@@ -153,7 +153,7 @@ mod tests {
                     "Rock",
                     vec![
                         song(MusicApiType::Tidal, "t1", Some("AAAAA1111111"), "Song A"),
-                        song(MusicApiType::Tidal, "t2", Some("BBBBB2222222"), "Song B"),
+                        song(MusicApiType::Tidal, "t2", Some("BBBBB2222222"), "Wolfmoon"),
                     ],
                 ),
                 // Auto playlist that must be skipped.
@@ -179,7 +179,7 @@ mod tests {
                 "Rock",
                 vec![
                     song(MusicApiType::Spotify, "s1", Some("AAAAA1111111"), "Song A"),
-                    song(MusicApiType::Spotify, "s3", Some("CCCCC3333333"), "Song C"),
+                    song(MusicApiType::Spotify, "s3", Some("CCCCC3333333"), "Ironclad"),
                 ],
             )],
         );
@@ -208,7 +208,7 @@ mod tests {
         assert_eq!(a.id, "t1");
 
         let names: Vec<&str> = rock.songs.iter().map(|s| s.name.as_str()).collect();
-        assert_eq!(names, ["Song A", "Song B", "Song C"]);
+        assert_eq!(names, ["Ironclad", "Song A", "Wolfmoon"]);
 
         std::fs::remove_dir_all(&dir).ok();
     }

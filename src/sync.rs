@@ -167,7 +167,7 @@ pub async fn synchronize_playlists(
 
         // 2. Add missing songs to the destination playlist
         if !dst_songs.is_empty() {
-            let mut to_sync = Vec::new();
+            let mut to_sync: Vec<Song> = Vec::new();
             for dst_song in &dst_songs {
                 // HACK: takes into account discrepancy for YtMusic with no ISRC
                 if dst_playlist_index.contains(dst_song, config.strip_qualifiers) {
@@ -181,7 +181,10 @@ pub async fn synchronize_playlists(
                 }
                 // Edge case: same song on different album/single that all resolve to the same
                 // song on the destination platform resulting in duplicates
-                if to_sync.contains(dst_song) {
+                if to_sync
+                    .iter()
+                    .any(|s| s.compare(dst_song, config.strip_qualifiers))
+                {
                     debug!(
                         "discrepancy, duplicate song in songs to synchronize: {}",
                         dst_song
@@ -325,6 +328,17 @@ pub async fn synchronize_likes(
         if dst_likes_index.contains(&song, config.strip_qualifiers) {
             attempts -= 1;
             debug!("discrepancy, song already liked: {}", song);
+            continue;
+        }
+        // Edge case: different src_likes that resolve to the same logical
+        // song on the destination platform (e.g. a duplicate upload, or a
+        // different pick_best_match tie-break) resulting in duplicate likes
+        if new_likes
+            .iter()
+            .any(|s: &Song| s.compare(&song, config.strip_qualifiers))
+        {
+            attempts -= 1;
+            debug!("discrepancy, duplicate song to like: {}", song);
             continue;
         }
         success += 1;

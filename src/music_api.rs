@@ -153,9 +153,6 @@ impl Song {
     }
 
     pub fn compare(&self, other: &Self, strip_qualifiers: bool) -> bool {
-        if self.source == other.source {
-            return self.id == other.id;
-        }
         if !self.isrc.is_empty() && !other.isrc.is_empty() {
             let isrc_overlap = self.isrc.iter().any(|i| other.isrc.contains(i));
             if isrc_overlap {
@@ -196,7 +193,7 @@ impl Song {
         let dur2 = other.duration_ms / 1000;
 
         // we allow a 1 second difference
-        if !(dur1 - 1..=dur1 + 1).contains(&dur2) {
+        if dur1.abs_diff(dur2) > 1 {
             debug!("Duration: {} vs {} --> {} VS {}", dur1, dur2, self, other);
             return false;
         }
@@ -347,11 +344,10 @@ pub fn pick_best_match(
 
 impl PartialEq for Song {
     fn eq(&self, other: &Self) -> bool {
-        // `strip_qualifiers` doesn't have a config to read here; every
-        // remaining caller of this impl compares songs from the same
-        // source (where `compare` short-circuits on id equality before
-        // ever reaching the name/album checks), so the value passed is
-        // inconsequential.
+        // No config to read here, so pick the safest default for an
+        // identity/dedup check with no other context: strip_qualifiers=false
+        // widens name matching to also consider the raw, qualifier-preserving
+        // name -- this only ever makes matching more permissive, never less.
         self.compare(other, false)
     }
 }
@@ -503,6 +499,35 @@ mod tests {
         a.name = "Totally Different Song".to_string();
         let b = song(MusicApiType::Spotify, "sp-1", &["BBBBB2222222"], 200_000);
         assert!(!a.compare(&b, true));
+    }
+
+    #[test]
+    fn compare_matches_same_source_songs_with_different_ids_but_matching_name_and_duration() {
+        // e.g. two different destination-platform track IDs (duplicate
+        // upload, or a different pick_best_match tie-break on a later run)
+        // that are logically the same recording -- dedup checks (playlist
+        // sync, like sync) need this to catch same-source near-duplicates,
+        // not just literal id equality.
+        let a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        let b = song(MusicApiType::Spotify, "sp-2", &[], 200_000);
+        assert!(a.compare(&b, true));
+    }
+
+    #[test]
+    fn compare_rejects_same_source_songs_with_different_ids_and_different_name_and_duration() {
+        let a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        let mut b = song(MusicApiType::Spotify, "sp-2", &[], 999_000);
+        b.name = "Totally Different Song".to_string();
+        assert!(!a.compare(&b, true));
+    }
+
+    #[test]
+    fn compare_does_not_underflow_when_a_duration_is_under_one_second() {
+        // duration_ms < 1000 makes `duration_ms / 1000 == 0`; the duration
+        // check must not do `0 - 1` on an unsigned type.
+        let a = song(MusicApiType::Spotify, "sp-1", &[], 0);
+        let b = song(MusicApiType::Spotify, "sp-2", &[], 500);
+        assert!(a.compare(&b, true));
     }
 
     #[test]
