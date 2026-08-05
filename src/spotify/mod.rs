@@ -18,6 +18,7 @@ use tracing::{debug, info, warn};
 
 use self::model::{
     SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySnapshotResponse, SpotifySongItemResponse,
+    SpotifySongResponse,
 };
 use crate::ConfigArgs;
 use crate::music_api::{
@@ -25,7 +26,7 @@ use crate::music_api::{
     Song, Songs,
 };
 use crate::spotify::model::SpotifySearchResponse;
-use crate::utils::debug_response_json;
+use crate::utils::{clean_isrc, debug_response_json};
 
 pub struct SpotifyApi {
     client: reqwest::Client,
@@ -414,9 +415,7 @@ impl MusicApi for SpotifyApi {
         let max_len = 100;
         let mut queries = vec![];
 
-        if let Some(isrc) = &song.isrc {
-            queries.push(format!("isrc:{}", isrc));
-        } else {
+        if song.isrc.is_empty() {
             let mut track_query = format!("track:\"{}\"", song.clean_name());
             if track_query.len() > max_len {
                 warn!(
@@ -458,6 +457,36 @@ impl MusicApi for SpotifyApi {
                     push_query(&mut queries, tr_ar_al_query, max_len);
                 }
             }
+
+            // With qualifiers preserved, also try the raw (unstripped)
+            // track name -- see Song::build_queries for the same rationale.
+            if !self.config.strip_qualifiers {
+                let raw_track_name = song.raw_clean_name();
+                if raw_track_name != song.clean_name() {
+                    let mut raw_track_query = format!("track:\"{}\"", raw_track_name);
+                    if raw_track_query.len() > max_len {
+                        raw_track_query = raw_track_query[..max_len].to_string();
+                    }
+                    if let Some(album_query) = album_query.as_ref() {
+                        push_query(
+                            &mut queries,
+                            format!("{} {}", raw_track_query, album_query),
+                            max_len,
+                        );
+                    }
+                    for artist_query in artist_queries.iter().rev() {
+                        push_query(
+                            &mut queries,
+                            format!("{} {}", raw_track_query, artist_query),
+                            max_len,
+                        );
+                    }
+                }
+            }
+        } else {
+            for isrc in &song.isrc {
+                queries.push(format!("isrc:{}", isrc));
+            }
         }
 
         while let Some(query) = queries.pop() {
@@ -467,13 +496,49 @@ impl MusicApi for SpotifyApi {
                 .await?;
             let res_songs: Songs = res.try_into()?;
             // iterate over top 3 results
-            for res_song in res_songs.0.into_iter().take(3) {
-                if song.compare(&res_song) {
-                    return Ok(Some(res_song));
-                }
+            if let Some(best) = crate::music_api::pick_best_match(
+                song,
+                res_songs.0.into_iter().take(3),
+                self.config.map_singles,
+                self.config.strip_qualifiers,
+            ) {
+                return Ok(Some(best));
             }
         }
         return Ok(None);
+    }
+
+    async fn enrich_isrc(&self, song: &mut Song, markets: &[String]) -> Result<()> {
+        let path = format!("/tracks/{}", song.id);
+        for market in markets {
+            // Already implicitly tried via the account's own market.
+            if market.eq_ignore_ascii_case(&self.country_code) {
+                continue;
+            }
+            let res: SpotifySongResponse = match self
+                .make_request_json(&path, &HttpMethod::Get(&[("market", market.as_str())]), 50, 0)
+                .await
+            {
+                Ok(res) => res,
+                Err(e) => {
+                    debug!(
+                        "failed to look up ISRC for song {} in market {}: {}, skipping",
+                        song.id, market, e
+                    );
+                    continue;
+                }
+            };
+            match clean_isrc(res.external_ids.isrc) {
+                Some(isrc) if !song.isrc.contains(&isrc) => song.isrc.push(isrc),
+                _ => {
+                    debug!(
+                        "no new ISRC found for song {} in market {}",
+                        song.id, market
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn add_likes(&self, songs: &[Song]) -> Result<()> {
@@ -505,7 +570,23 @@ mod tests {
     use super::*;
     use crate::yt_music::YtMusicApi;
 
+    fn test_config() -> ConfigArgs {
+        ConfigArgs {
+            debug: false,
+            like_all: false,
+            sync_likes: false,
+            diff_country: false,
+            proxy: None,
+            search_concurrency: 8,
+            map_singles: false,
+            strip_qualifiers: true,
+            isrc_enrich: false,
+            isrc_markets: vec![],
+        }
+    }
+
     #[tokio::test]
+    #[ignore = "requires live YTMUSIC_*/SPOTIFY_* credentials and a real 'TestSpotify' playlist"]
     async fn test_spotify_search_from_ytmusic() {
         let yt_client_id = env::var("YTMUSIC_CLIENT_ID").unwrap();
         let yt_client_secret = env::var("YTMUSIC_CLIENT_SECRET").unwrap();
@@ -516,7 +597,7 @@ mod tests {
             &yt_client_secret,
             oauth_token_path,
             false,
-            None,
+            test_config(),
         )
         .await
         .unwrap();
@@ -527,9 +608,18 @@ mod tests {
 
         let spotify_client_id = env::var("SPOTIFY_CLIENT_ID").unwrap();
         let spotify_secret = env::var("SPOTIFY_CLIENT_SECRET").unwrap();
-        let spotify = SpotifyApi::new(&spotify_client_id, &spotify_secret, None)
-            .await
-            .unwrap();
+        let config_dir = dirs::config_dir().unwrap();
+        let oauth_token_path = config_dir.join("SyncDisBoi").join("spotify_oauth.json");
+        let spotify = SpotifyApi::new(
+            &spotify_client_id,
+            &spotify_secret,
+            oauth_token_path,
+            SpotifyApi::REDIRECT_URI_URL,
+            false,
+            test_config(),
+        )
+        .await
+        .unwrap();
 
         let songs = spotify.search_songs(&songs).await.unwrap();
         let correct_ids = [

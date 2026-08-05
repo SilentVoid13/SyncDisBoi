@@ -423,22 +423,10 @@ impl MusicApi for YtMusicApi {
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
-        if let Some(isrc) = &song.isrc {
-            let body = json!({
-                "query": format!("\"{}\"", isrc),
-            });
-            let response = self
-                .make_request::<YtMusicResponse>("search", &body, None)
-                .await?;
-            let res_song: SearchSongUnique = response.try_into()?;
-            if let Some(mut res_song) = res_song.0 {
-                res_song.isrc = Some(isrc.clone());
-                return Ok(Some(res_song));
-            }
-        } else {
+        if song.isrc.is_empty() {
             let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
             let params = format!("EgWKAQ{}{}", "II", ignore_spelling);
-            let mut queries = song.build_queries();
+            let mut queries = song.build_queries(self.config.strip_qualifiers);
             while let Some(query) = queries.pop() {
                 let body = json!({
                     "query": query,
@@ -449,10 +437,27 @@ impl MusicApi for YtMusicApi {
                     .await?;
                 let res_songs: SearchSongs = response.try_into()?;
                 // iterate over top 3 results
-                for res_song in res_songs.0.into_iter().take(3) {
-                    if song.compare(&res_song) {
-                        return Ok(Some(res_song));
-                    }
+                if let Some(best) = crate::music_api::pick_best_match(
+                    song,
+                    res_songs.0.into_iter().take(3),
+                    self.config.map_singles,
+                    self.config.strip_qualifiers,
+                ) {
+                    return Ok(Some(best));
+                }
+            }
+        } else {
+            for isrc in &song.isrc {
+                let body = json!({
+                    "query": format!("\"{}\"", isrc),
+                });
+                let response = self
+                    .make_request::<YtMusicResponse>("search", &body, None)
+                    .await?;
+                let res_song: SearchSongUnique = response.try_into()?;
+                if let Some(mut res_song) = res_song.0 {
+                    res_song.isrc = vec![isrc.clone()];
+                    return Ok(Some(res_song));
                 }
             }
         }

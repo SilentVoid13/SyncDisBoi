@@ -36,4 +36,44 @@ pub struct ConfigArgs {
     /// Proxy to use for all requests in the format http://<ip>:<port>
     #[arg(long)]
     pub proxy: Option<String>,
+
+    /// Maximum number of song searches to run concurrently against the
+    /// destination platform. Higher values speed up synchronization but
+    /// increase the chance of hitting the destination API's rate limits.
+    #[arg(long, default_value = "8")]
+    pub search_concurrency: usize,
+
+    /// Match singles (a track whose album name equals its own name, as
+    /// Spotify often releases them) against a same-named track filed under
+    /// a full album on the other platform, skipping the album-name check
+    /// for that comparison. Without this, a single only matches another
+    /// single, so a track released as a single on one platform but only
+    /// available on its full album on the other will be reported as
+    /// missing even when the recording itself is present.
+    #[arg(long, default_value = "false")]
+    pub map_singles: bool,
+
+    /// Strip remix/mix/version qualifiers and feat. credits from track
+    /// titles before comparing/searching (default: on, matching today's
+    /// behavior). Disabling this keeps the raw title available alongside
+    /// the stripped one, using both to avoid conflating a track with its
+    /// remixes when they collapse to the same stripped name -- at the cost
+    /// of being pickier about cross-platform title-formatting differences
+    /// (e.g. feat.-credit lists) that the stripped comparison used to paper
+    /// over.
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    pub strip_qualifiers: bool,
+
+    /// Attempt to discover additional ISRCs for a Spotify like that fails
+    /// to find a destination match, by re-querying the track under the
+    /// markets in --isrc-markets (Spotify's track relinking can serve a
+    /// different regional release -- and ISRC -- per market). Adds up to
+    /// `isrc_markets.len()` extra Spotify requests per unmatched like.
+    #[arg(long, default_value = "false")]
+    pub isrc_enrich: bool,
+
+    /// Markets to probe when --isrc-enrich is set, as a comma-separated
+    /// list of ISO 3166-1 alpha-2 country codes.
+    #[arg(long, value_delimiter = ',', default_value = "US,GB,DE,JP,BR")]
+    pub isrc_markets: Vec<String>,
 }
