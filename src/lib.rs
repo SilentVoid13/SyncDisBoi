@@ -63,4 +63,17 @@ pub struct ConfigArgs {
     /// over.
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     pub strip_qualifiers: bool,
+
+    /// Attempt to discover additional ISRCs for a Spotify like that fails
+    /// to find a destination match, by re-querying the track under the
+    /// markets in --isrc-markets (Spotify's track relinking can serve a
+    /// different regional release -- and ISRC -- per market). Adds up to
+    /// `isrc_markets.len()` extra Spotify requests per unmatched like.
+    #[arg(long, default_value = "false")]
+    pub isrc_enrich: bool,
+
+    /// Markets to probe when --isrc-enrich is set, as a comma-separated
+    /// list of ISO 3166-1 alpha-2 country codes.
+    #[arg(long, value_delimiter = ',', default_value = "US,GB,DE,JP,BR")]
+    pub isrc_markets: Vec<String>,
 }

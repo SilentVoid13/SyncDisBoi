@@ -546,6 +546,8 @@ mod tests {
             search_concurrency: 8,
             map_singles: false,
             strip_qualifiers: true,
+            isrc_enrich: false,
+            isrc_markets: vec![],
         }
     }
 
