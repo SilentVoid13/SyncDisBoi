@@ -121,7 +121,7 @@ pub async fn synchronize_playlists(
             .iter()
             .filter(|src_song| {
                 // already in destination playlist
-                if dst_playlist_index.contains(src_song, config.strip_qualifiers) {
+                if dst_playlist_index.contains(src_song, config.map_singles, config.strip_qualifiers) {
                     return false;
                 }
                 // no album metadata == youtube video
@@ -170,7 +170,7 @@ pub async fn synchronize_playlists(
             let mut to_sync: Vec<Song> = Vec::new();
             for dst_song in &dst_songs {
                 // HACK: takes into account discrepancy for YtMusic with no ISRC
-                if dst_playlist_index.contains(dst_song, config.strip_qualifiers) {
+                if dst_playlist_index.contains(dst_song, config.map_singles, config.strip_qualifiers) {
                     debug!(
                         "discrepancy, song already in destination playlist: {}",
                         dst_song
@@ -183,7 +183,7 @@ pub async fn synchronize_playlists(
                 // song on the destination platform resulting in duplicates
                 if to_sync
                     .iter()
-                    .any(|s| s.compare(dst_song, config.strip_qualifiers))
+                    .any(|s| s.compare(dst_song, config.map_singles, config.strip_qualifiers))
                 {
                     debug!(
                         "discrepancy, duplicate song in songs to synchronize: {}",
@@ -211,7 +211,7 @@ pub async fn synchronize_playlists(
             if config.like_all {
                 let new_likes = to_sync
                     .iter()
-                    .filter(|s| !dst_likes_index.contains(s, config.strip_qualifiers))
+                    .filter(|s| !dst_likes_index.contains(s, config.map_singles, config.strip_qualifiers))
                     .cloned()
                     .collect::<Vec<Song>>();
                 dst_api.add_likes(&new_likes).await?;
@@ -306,7 +306,7 @@ pub async fn synchronize_likes(
     let dst_likes_index = SongIndex::build(&dst_likes);
     let to_search: Vec<Song> = src_likes
         .into_iter()
-        .filter(|src_like| !dst_likes_index.contains(src_like, config.strip_qualifiers))
+        .filter(|src_like| !dst_likes_index.contains(src_like, config.map_singles, config.strip_qualifiers))
         .collect();
 
     attempts += i32::try_from(to_search.len()).unwrap_or(i32::MAX);
@@ -325,7 +325,7 @@ pub async fn synchronize_likes(
             continue;
         };
         // HACK: takes into account discrepancy for YtMusic with no ISRC
-        if dst_likes_index.contains(&song, config.strip_qualifiers) {
+        if dst_likes_index.contains(&song, config.map_singles, config.strip_qualifiers) {
             attempts -= 1;
             debug!("discrepancy, song already liked: {}", song);
             continue;
@@ -335,7 +335,7 @@ pub async fn synchronize_likes(
         // different pick_best_match tie-break) resulting in duplicate likes
         if new_likes
             .iter()
-            .any(|s: &Song| s.compare(&song, config.strip_qualifiers))
+            .any(|s: &Song| s.compare(&song, config.map_singles, config.strip_qualifiers))
         {
             attempts -= 1;
             debug!("discrepancy, duplicate song to like: {}", song);

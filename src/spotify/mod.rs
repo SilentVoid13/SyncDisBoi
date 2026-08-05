@@ -498,6 +498,7 @@ impl MusicApi for SpotifyApi {
             if let Some(best) = crate::music_api::pick_best_match(
                 song,
                 res_songs.0.into_iter().take(3),
+                self.config.map_singles,
                 self.config.strip_qualifiers,
             ) {
                 return Ok(Some(best));
@@ -543,6 +544,7 @@ mod tests {
             diff_country: false,
             proxy: None,
             search_concurrency: 8,
+            map_singles: false,
             strip_qualifiers: true,
         }
     }

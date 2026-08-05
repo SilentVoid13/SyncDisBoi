@@ -196,7 +196,7 @@ impl Song {
         }
     }
 
-    pub fn compare(&self, other: &Self, strip_qualifiers: bool) -> bool {
+    pub fn compare(&self, other: &Self, map_singles: bool, strip_qualifiers: bool) -> bool {
         if !self.isrc.is_empty() && !other.isrc.is_empty() {
             let isrc_overlap = self.isrc.iter().any(|i| other.isrc.contains(i));
             if isrc_overlap {
@@ -243,11 +243,17 @@ impl Song {
         }
 
         if let (Some(album1), Some(album2)) = (&self.album, &other.album) {
-            // INFO: Sometimes Youtube Music maps the album song to the Youtube Video
-            // Sometimes, the album song is just suppressed from the 'Songs' filter
-            // In these cases, we can get the single instead so we shouldn't compare album
-            // names
-            if !self.is_single() && !other.is_single() {
+            // With --map-singles: a track released as a single on one platform
+            // (album name == track name, e.g. common on Spotify) may only exist
+            // filed under its real full album on the other platform, so the
+            // album names will legitimately differ. Skip the album check for
+            // that case instead of rejecting an otherwise-strong match.
+            //
+            // This also covers the case where YtMusic maps an album song to a
+            // standalone video, or suppresses the album song from the 'Songs'
+            // filter, surfacing the single instead.
+            let skip_album_check = map_singles && (self.is_single() || other.is_single());
+            if !skip_album_check {
                 // Check album name resemblance
                 let name1 = album1.clean_name();
                 let name2 = album2.clean_name();
@@ -338,12 +344,12 @@ impl<'a> SongIndex<'a> {
 
     /// Equivalent to `songs.contains(song)` for the slice this index was
     /// built from.
-    pub fn contains(&self, song: &Song, strip_qualifiers: bool) -> bool {
+    pub fn contains(&self, song: &Song, map_singles: bool, strip_qualifiers: bool) -> bool {
         for isrc in &song.isrc {
             if let Some(candidates) = self.by_isrc.get(isrc.as_str()) {
                 if candidates
                     .iter()
-                    .any(|c| song.compare(c, strip_qualifiers))
+                    .any(|c| song.compare(c, map_singles, strip_qualifiers))
                 {
                     return true;
                 }
@@ -352,7 +358,9 @@ impl<'a> SongIndex<'a> {
         let bucket: i64 = (song.duration_ms / 1000).try_into().unwrap_or(i64::MAX);
         (bucket - 1..=bucket + 1).any(|b| {
             self.by_duration_bucket.get(&b).is_some_and(|candidates| {
-                candidates.iter().any(|c| song.compare(c, strip_qualifiers))
+                candidates
+                    .iter()
+                    .any(|c| song.compare(c, map_singles, strip_qualifiers))
             })
         })
     }
@@ -370,14 +378,15 @@ impl<'a> SongIndex<'a> {
 pub fn pick_best_match(
     song: &Song,
     mut candidates: impl Iterator<Item = Song>,
+    map_singles: bool,
     strip_qualifiers: bool,
 ) -> Option<Song> {
     if strip_qualifiers {
-        return candidates.find(|c| song.compare(c, strip_qualifiers));
+        return candidates.find(|c| song.compare(c, map_singles, strip_qualifiers));
     }
     let song_raw = song.raw_clean_name();
     candidates
-        .filter(|c| song.compare(c, strip_qualifiers))
+        .filter(|c| song.compare(c, map_singles, strip_qualifiers))
         .max_by(|a, b| {
             let score_a = name_score(&song_raw, &a.raw_clean_name());
             let score_b = name_score(&song_raw, &b.raw_clean_name());
@@ -387,11 +396,13 @@ pub fn pick_best_match(
 
 impl PartialEq for Song {
     fn eq(&self, other: &Self) -> bool {
-        // No config to read here, so pick the safest default for an
-        // identity/dedup check with no other context: strip_qualifiers=false
-        // widens name matching to also consider the raw, qualifier-preserving
-        // name -- this only ever makes matching more permissive, never less.
-        self.compare(other, false)
+        // Neither `map_singles` nor `strip_qualifiers` has a config to read
+        // here, so pick the safest defaults for an identity/dedup check with
+        // no other context: map_singles=false (don't skip the album check),
+        // strip_qualifiers=false (widen name matching to also consider the
+        // raw, qualifier-preserving name -- this only ever makes matching
+        // more permissive, never less).
+        self.compare(other, false, false)
     }
 }
 
@@ -523,8 +534,8 @@ mod tests {
             200_000,
         );
         let b = song(MusicApiType::Spotify, "sp-1", &["USSM19501100"], 999_000);
-        assert!(a.compare(&b, true));
-        assert!(b.compare(&a, true));
+        assert!(a.compare(&b, false, true));
+        assert!(b.compare(&a, false, true));
     }
 
     #[test]
@@ -533,7 +544,7 @@ mod tests {
         // ISRC differs, so ISRC alone can't rule it out.
         let a = song(MusicApiType::Tidal, "sub-1", &["AAAAA1111111"], 200_000);
         let b = song(MusicApiType::Spotify, "sp-1", &["BBBBB2222222"], 200_000);
-        assert!(a.compare(&b, true));
+        assert!(a.compare(&b, false, true));
     }
 
     #[test]
@@ -541,7 +552,7 @@ mod tests {
         let mut a = song(MusicApiType::Tidal, "sub-1", &["AAAAA1111111"], 200_000);
         a.name = "Totally Different Song".to_string();
         let b = song(MusicApiType::Spotify, "sp-1", &["BBBBB2222222"], 200_000);
-        assert!(!a.compare(&b, true));
+        assert!(!a.compare(&b, false, true));
     }
 
     #[test]
@@ -553,7 +564,7 @@ mod tests {
         // not just literal id equality.
         let a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
         let b = song(MusicApiType::Spotify, "sp-2", &[], 200_000);
-        assert!(a.compare(&b, true));
+        assert!(a.compare(&b, false, true));
     }
 
     #[test]
@@ -561,7 +572,7 @@ mod tests {
         let a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
         let mut b = song(MusicApiType::Spotify, "sp-2", &[], 999_000);
         b.name = "Totally Different Song".to_string();
-        assert!(!a.compare(&b, true));
+        assert!(!a.compare(&b, false, true));
     }
 
     #[test]
@@ -570,7 +581,7 @@ mod tests {
         // check must not do `0 - 1` on an unsigned type.
         let a = song(MusicApiType::Spotify, "sp-1", &[], 0);
         let b = song(MusicApiType::Spotify, "sp-2", &[], 500);
-        assert!(a.compare(&b, true));
+        assert!(a.compare(&b, false, true));
     }
 
     #[test]
@@ -589,7 +600,7 @@ mod tests {
     }
 
     #[test]
-    fn compare_matches_remix_titled_single_vs_album_track() {
+    fn compare_rejects_single_vs_album_track_without_map_singles() {
         let mut a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
         a.name = "Let Me - Rave Mix".to_string();
         a.album = Some(Album {
@@ -602,7 +613,24 @@ mod tests {
             id: None,
             name: "Some Completely Different Album".to_string(),
         });
-        assert!(a.compare(&b, true));
+        assert!(!a.compare(&b, false, true));
+    }
+
+    #[test]
+    fn compare_matches_remix_titled_single_vs_album_track_with_map_singles() {
+        let mut a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        a.name = "Let Me - Rave Mix".to_string();
+        a.album = Some(Album {
+            id: None,
+            name: "Let Me".to_string(),
+        });
+        let mut b = song(MusicApiType::Tidal, "sub-1", &[], 200_000);
+        b.name = "Let Me - Rave Mix".to_string();
+        b.album = Some(Album {
+            id: None,
+            name: "Some Completely Different Album".to_string(),
+        });
+        assert!(a.compare(&b, true, true));
     }
 
     #[test]
@@ -623,7 +651,7 @@ mod tests {
             id: None,
             name: "Floodland".to_string(),
         });
-        assert!(a.compare(&b, true));
+        assert!(a.compare(&b, false, true));
     }
 
     #[test]
@@ -641,7 +669,7 @@ mod tests {
             id: None,
             name: "Hôtel Costes, Volume 7".to_string(),
         });
-        assert!(a.compare(&b, true));
+        assert!(a.compare(&b, false, true));
     }
 
     #[test]
@@ -656,7 +684,7 @@ mod tests {
             id: None,
             name: "Floodland".to_string(),
         });
-        assert!(!a.compare(&b, true));
+        assert!(!a.compare(&b, false, true));
     }
 
     #[test]
@@ -675,7 +703,7 @@ mod tests {
             id: None,
             name: "Live From Wembley".to_string(),
         });
-        assert!(!a.compare(&b, true));
+        assert!(!a.compare(&b, false, true));
     }
 
     #[test]
@@ -691,8 +719,8 @@ mod tests {
         let mut b = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
         b.name = "Q2 (Extended Mix)".to_string();
 
-        assert!(!a.compare(&b, true));
-        assert!(a.compare(&b, false));
+        assert!(!a.compare(&b, false, true));
+        assert!(a.compare(&b, false, false));
     }
 
     #[test]
@@ -705,7 +733,7 @@ mod tests {
 
         let needle = song(MusicApiType::Spotify, "sp-1", &["AAAAA1111111"], 42_000);
         assert!(haystack.contains(&needle));
-        assert!(index.contains(&needle, true));
+        assert!(index.contains(&needle, false, true));
     }
 
     #[test]
@@ -717,13 +745,13 @@ mod tests {
         let mut needle = song(MusicApiType::Spotify, "sp-1", &[], 200_900);
         needle.name = "Same Name".to_string();
         assert!(haystack.contains(&needle));
-        assert!(index.contains(&needle, true));
+        assert!(index.contains(&needle, false, true));
 
         // outside the 1s tolerance
         let mut far = song(MusicApiType::Spotify, "sp-2", &[], 210_000);
         far.name = "Same Name".to_string();
         assert!(!haystack.contains(&far));
-        assert!(!index.contains(&far, true));
+        assert!(!index.contains(&far, false, true));
     }
 
     #[test]
@@ -734,7 +762,7 @@ mod tests {
         let mut needle = song(MusicApiType::Spotify, "sp-1", &["ZZZZZ9999999"], 999_000);
         needle.name = "Nothing Like It".to_string();
         assert!(!haystack.contains(&needle));
-        assert!(!index.contains(&needle, true));
+        assert!(!index.contains(&needle, false, true));
     }
 
     #[test]
@@ -752,7 +780,7 @@ mod tests {
         // With qualifiers stripped, both candidates' names collapse to
         // "circus bells" and the first one in iteration order wins -- the
         // exact bug this feature addresses.
-        let picked = pick_best_match(&query, candidates.into_iter(), true).unwrap();
+        let picked = pick_best_match(&query, candidates.into_iter(), false, true).unwrap();
         assert_eq!(picked.id, wrong_first.id);
     }
 
@@ -770,7 +798,7 @@ mod tests {
 
         // With qualifiers preserved, the raw name ranks the two candidates
         // and correctly prefers the one that actually shares "hardfloor".
-        let picked = pick_best_match(&query, candidates.into_iter(), false).unwrap();
+        let picked = pick_best_match(&query, candidates.into_iter(), false, false).unwrap();
         assert_eq!(picked.id, correct.id);
     }
 
@@ -781,7 +809,7 @@ mod tests {
         let mut candidate = song(MusicApiType::Tidal, "sub-1", &[], 900_000);
         candidate.name = "Unrelated".to_string();
 
-        assert!(pick_best_match(&query, vec![candidate.clone()].into_iter(), true).is_none());
-        assert!(pick_best_match(&query, vec![candidate].into_iter(), false).is_none());
+        assert!(pick_best_match(&query, vec![candidate.clone()].into_iter(), false, true).is_none());
+        assert!(pick_best_match(&query, vec![candidate].into_iter(), false, false).is_none());
     }
 }

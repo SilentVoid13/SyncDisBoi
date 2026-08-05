@@ -43,6 +43,16 @@ pub struct ConfigArgs {
     #[arg(long, default_value = "8")]
     pub search_concurrency: usize,
 
+    /// Match singles (a track whose album name equals its own name, as
+    /// Spotify often releases them) against a same-named track filed under
+    /// a full album on the other platform, skipping the album-name check
+    /// for that comparison. Without this, a single only matches another
+    /// single, so a track released as a single on one platform but only
+    /// available on its full album on the other will be reported as
+    /// missing even when the recording itself is present.
+    #[arg(long, default_value = "false")]
+    pub map_singles: bool,
+
     /// Strip remix/mix/version qualifiers and feat. credits from track
     /// titles before comparing/searching (default: on, matching today's
     /// behavior). Disabling this keeps the raw title available alongside

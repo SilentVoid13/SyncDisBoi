@@ -440,6 +440,7 @@ impl MusicApi for YtMusicApi {
                 if let Some(best) = crate::music_api::pick_best_match(
                     song,
                     res_songs.0.into_iter().take(3),
+                    self.config.map_singles,
                     self.config.strip_qualifiers,
                 ) {
                     return Ok(Some(best));
