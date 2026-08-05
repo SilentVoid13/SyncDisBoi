@@ -16,7 +16,7 @@ fn song_sort_key(song: &Song) -> (String, String, String, String) {
     (
         artist,
         song.name.to_lowercase(),
-        song.isrc.clone().unwrap_or_default(),
+        song.isrc.first().cloned().unwrap_or_default(),
         song.id.clone(),
     )
 }
@@ -117,7 +117,7 @@ mod tests {
             source,
             id: id.to_string(),
             sid: None,
-            isrc: isrc.map(str::to_string),
+            isrc: isrc.map(str::to_string).into_iter().collect(),
             name: name.to_string(),
             album: None,
             artists: vec![],
@@ -153,7 +153,7 @@ mod tests {
                     "Rock",
                     vec![
                         song(MusicApiType::Tidal, "t1", Some("AAAAA1111111"), "Song A"),
-                        song(MusicApiType::Tidal, "t2", Some("BBBBB2222222"), "Song B"),
+                        song(MusicApiType::Tidal, "t2", Some("BBBBB2222222"), "Wolfmoon"),
                     ],
                 ),
                 // Auto playlist that must be skipped.
@@ -179,7 +179,7 @@ mod tests {
                 "Rock",
                 vec![
                     song(MusicApiType::Spotify, "s1", Some("AAAAA1111111"), "Song A"),
-                    song(MusicApiType::Spotify, "s3", Some("CCCCC3333333"), "Song C"),
+                    song(MusicApiType::Spotify, "s3", Some("CCCCC3333333"), "Ironclad"),
                 ],
             )],
         );
@@ -202,13 +202,13 @@ mod tests {
         let a = rock
             .songs
             .iter()
-            .find(|s| s.isrc.as_deref() == Some("AAAAA1111111"))
+            .find(|s| s.isrc.first().map(String::as_str) == Some("AAAAA1111111"))
             .unwrap();
         assert_eq!(a.source, MusicApiType::Tidal);
         assert_eq!(a.id, "t1");
 
         let names: Vec<&str> = rock.songs.iter().map(|s| s.name.as_str()).collect();
-        assert_eq!(names, ["Song A", "Song B", "Song C"]);
+        assert_eq!(names, ["Ironclad", "Song A", "Wolfmoon"]);
 
         std::fs::remove_dir_all(&dir).ok();
     }

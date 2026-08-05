@@ -36,4 +36,21 @@ pub struct ConfigArgs {
     /// Proxy to use for all requests in the format http://<ip>:<port>
     #[arg(long)]
     pub proxy: Option<String>,
+
+    /// Maximum number of song searches to run concurrently against the
+    /// destination platform. Higher values speed up synchronization but
+    /// increase the chance of hitting the destination API's rate limits.
+    #[arg(long, default_value = "8")]
+    pub search_concurrency: usize,
+
+    /// Strip remix/mix/version qualifiers and feat. credits from track
+    /// titles before comparing/searching (default: on, matching today's
+    /// behavior). Disabling this keeps the raw title available alongside
+    /// the stripped one, using both to avoid conflating a track with its
+    /// remixes when they collapse to the same stripped name -- at the cost
+    /// of being pickier about cross-platform title-formatting differences
+    /// (e.g. feat.-credit lists) that the stripped comparison used to paper
+    /// over.
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    pub strip_qualifiers: bool,
 }

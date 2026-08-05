@@ -62,7 +62,7 @@ where
                 }
             };
             // either an invalid or deleted song
-            if song.id.is_empty() || song.duration_ms == 0 || song.isrc.is_none() {
+            if song.id.is_empty() || song.duration_ms == 0 || song.isrc.is_empty() {
                 debug!("song with invalid metadata, skipping it: '{}'", song);
                 continue;
             }
@@ -117,7 +117,7 @@ impl TryInto<Song> for SpotifySongResponse {
             name: self.album.name,
         };
 
-        let isrc = clean_isrc(self.external_ids.isrc);
+        let isrc = clean_isrc(self.external_ids.isrc).into_iter().collect();
 
         Ok(Song {
             source: MusicApiType::Spotify,

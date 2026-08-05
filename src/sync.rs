@@ -1,9 +1,10 @@
 use color_eyre::eyre::{Result, eyre};
+use futures::{StreamExt, stream};
 use serde_json::json;
 use tracing::{debug, info, warn};
 
 use crate::ConfigArgs;
-use crate::music_api::{DynMusicApi, MusicApiType, Playlist, Song};
+use crate::music_api::{DynMusicApi, MusicApiType, Playlist, Song, SongIndex};
 use crate::utils::dedup_songs;
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
@@ -54,7 +55,7 @@ pub async fn synchronize(
     synchronize_playlists(src_playlists, &dst_api, &config).await?;
 
     if config.sync_likes {
-        synchronize_likes(&src_api, &dst_api).await?;
+        synchronize_likes(&src_api, &dst_api, &config).await?;
     }
 
     Ok(())
@@ -77,6 +78,7 @@ pub async fn synchronize_playlists(
         info!("retrieving destination likes...");
         dst_likes = dst_api.get_likes().await?;
     }
+    let dst_likes_index = SongIndex::build(&dst_likes);
 
     for mut src_playlist in src_playlists
         .into_iter()
@@ -110,30 +112,48 @@ pub async fn synchronize_playlists(
 
         info!("synchronizing playlist \"{}\" ...", src_playlist.name);
 
+        let dst_playlist_index = SongIndex::build(&dst_playlist.songs);
+
         // 1. Search for each song in the destination playlist
-        for src_song in &src_playlist.songs {
-            // already in destination playlist
-            if dst_playlist.songs.contains(src_song) {
-                continue;
-            }
-            // no album metadata == youtube video
-            if src_song.album.is_none() {
-                warn!(
-                    "No album metadata for source song \"{}\", skipping",
-                    src_song
-                );
-                if config.debug {
-                    no_albums_songs
-                        .as_array_mut()
-                        .unwrap()
-                        .push(json!(src_song));
+        // First, filter out songs that don't need a search (cheap, sequential).
+        let to_search: Vec<&Song> = src_playlist
+            .songs
+            .iter()
+            .filter(|src_song| {
+                // already in destination playlist
+                if dst_playlist_index.contains(src_song, config.strip_qualifiers) {
+                    return false;
                 }
-                continue;
-            }
+                // no album metadata == youtube video
+                if src_song.album.is_none() {
+                    warn!(
+                        "No album metadata for source song \"{}\", skipping",
+                        src_song
+                    );
+                    if config.debug {
+                        no_albums_songs
+                            .as_array_mut()
+                            .unwrap()
+                            .push(json!(src_song));
+                    }
+                    return false;
+                }
+                true
+            })
+            .collect();
 
-            attempts += 1;
+        // Then run the remaining searches concurrently (bounded, order-preserving)
+        // instead of awaiting them one at a time, since each search can involve
+        // several sequential HTTP round-trips on the destination platform.
+        attempts += i32::try_from(to_search.len()).unwrap_or(i32::MAX);
+        let search_results: Vec<(&Song, Result<Option<Song>>)> = stream::iter(to_search)
+            .map(|src_song| async move { (src_song, dst_api.search_song(src_song).await) })
+            .buffered(config.search_concurrency.max(1))
+            .collect()
+            .await;
 
-            let dst_song = dst_api.search_song(src_song).await?;
+        for (src_song, result) in search_results {
+            let dst_song = result?;
             let Some(dst_song) = dst_song else {
                 debug!("no match found for song: {}", src_song);
                 if config.debug {
@@ -147,10 +167,10 @@ pub async fn synchronize_playlists(
 
         // 2. Add missing songs to the destination playlist
         if !dst_songs.is_empty() {
-            let mut to_sync = Vec::new();
+            let mut to_sync: Vec<Song> = Vec::new();
             for dst_song in &dst_songs {
                 // HACK: takes into account discrepancy for YtMusic with no ISRC
-                if dst_playlist.songs.contains(dst_song) {
+                if dst_playlist_index.contains(dst_song, config.strip_qualifiers) {
                     debug!(
                         "discrepancy, song already in destination playlist: {}",
                         dst_song
@@ -161,7 +181,10 @@ pub async fn synchronize_playlists(
                 }
                 // Edge case: same song on different album/single that all resolve to the same
                 // song on the destination platform resulting in duplicates
-                if to_sync.contains(dst_song) {
+                if to_sync
+                    .iter()
+                    .any(|s| s.compare(dst_song, config.strip_qualifiers))
+                {
                     debug!(
                         "discrepancy, duplicate song in songs to synchronize: {}",
                         dst_song
@@ -188,7 +211,7 @@ pub async fn synchronize_playlists(
             if config.like_all {
                 let new_likes = to_sync
                     .iter()
-                    .filter(|s| !dst_likes.contains(s))
+                    .filter(|s| !dst_likes_index.contains(s, config.strip_qualifiers))
                     .cloned()
                     .collect::<Vec<Song>>();
                 dst_api.add_likes(&new_likes).await?;
@@ -265,7 +288,11 @@ pub async fn synchronize_playlists(
     Ok(())
 }
 
-pub async fn synchronize_likes(src_api: &DynMusicApi, dst_api: &DynMusicApi) -> Result<()> {
+pub async fn synchronize_likes(
+    src_api: &DynMusicApi,
+    dst_api: &DynMusicApi,
+    config: &ConfigArgs,
+) -> Result<()> {
     info!("retrieving source likes...");
     let src_likes = src_api.get_likes().await?;
     info!("retrieving destination likes...");
@@ -276,19 +303,42 @@ pub async fn synchronize_likes(src_api: &DynMusicApi, dst_api: &DynMusicApi) -> 
     let mut attempts = 0;
 
     info!("searching for all missing likes on destination platform...");
-    for src_like in src_likes {
-        if dst_likes.contains(&src_like) {
-            continue;
-        }
-        attempts += 1;
-        let Some(song) = dst_api.search_song(&src_like).await? else {
+    let dst_likes_index = SongIndex::build(&dst_likes);
+    let to_search: Vec<Song> = src_likes
+        .into_iter()
+        .filter(|src_like| !dst_likes_index.contains(src_like, config.strip_qualifiers))
+        .collect();
+
+    attempts += i32::try_from(to_search.len()).unwrap_or(i32::MAX);
+    let search_results: Vec<(Song, Result<Option<Song>>)> = stream::iter(to_search)
+        .map(|src_like| async move {
+            let result = dst_api.search_song(&src_like).await;
+            (src_like, result)
+        })
+        .buffered(config.search_concurrency.max(1))
+        .collect()
+        .await;
+
+    for (src_like, result) in search_results {
+        let Some(song) = result? else {
             debug!("no match found for song: {}", src_like);
             continue;
         };
         // HACK: takes into account discrepancy for YtMusic with no ISRC
-        if dst_likes.contains(&song) {
+        if dst_likes_index.contains(&song, config.strip_qualifiers) {
             attempts -= 1;
             debug!("discrepancy, song already liked: {}", song);
+            continue;
+        }
+        // Edge case: different src_likes that resolve to the same logical
+        // song on the destination platform (e.g. a duplicate upload, or a
+        // different pick_best_match tie-break) resulting in duplicate likes
+        if new_likes
+            .iter()
+            .any(|s: &Song| s.compare(&song, config.strip_qualifiers))
+        {
+            attempts -= 1;
+            debug!("discrepancy, duplicate song to like: {}", song);
             continue;
         }
         success += 1;

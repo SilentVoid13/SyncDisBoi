@@ -355,7 +355,7 @@ impl MusicApi for TidalApi {
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
-        if let Some(isrc) = &song.isrc {
+        for isrc in &song.isrc {
             let url = format!("{}/tracks", Self::API_V2_URL);
             let params = json!({
                 "countryCode": self.country_code,
@@ -366,17 +366,17 @@ impl MusicApi for TidalApi {
                 .make_request_json(&url, &HttpMethod::Get(&params), Some((1, 0)))
                 .await?;
             if res.data.is_empty() {
-                return Ok(None);
+                continue;
             }
             let mut res_songs: Songs = res.try_into()?;
             if res_songs.0.is_empty() {
-                return Ok(None);
+                continue;
             }
             return Ok(Some(res_songs.0.remove(0)));
         }
 
         let url = format!("{}/v1/search", Self::API_URL);
-        let mut queries = song.build_queries();
+        let mut queries = song.build_queries(self.config.strip_qualifiers);
 
         while let Some(query) = queries.pop() {
             let params = json!({
@@ -389,10 +389,12 @@ impl MusicApi for TidalApi {
                 .await?;
             let res_songs: Songs = res.try_into()?;
             // iterate over top 3 results
-            for res_song in res_songs.0.into_iter().take(3) {
-                if song.compare(&res_song) {
-                    return Ok(Some(res_song));
-                }
+            if let Some(best) = crate::music_api::pick_best_match(
+                song,
+                res_songs.0.into_iter().take(3),
+                self.config.strip_qualifiers,
+            ) {
+                return Ok(Some(best));
             }
         }
         Ok(None)

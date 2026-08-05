@@ -33,7 +33,7 @@ pub fn clean_enclosure(name: &str, start_tag: char, end_tag: char) -> String {
     name.to_string()
 }
 
-pub fn generic_name_clean(name: &str) -> String {
+pub fn normalize_name(name: &str) -> String {
     let mut name = name.to_lowercase();
     let replaces = [
         ("'", ""),
@@ -47,10 +47,17 @@ pub fn generic_name_clean(name: &str) -> String {
     for (a, b) in replaces {
         name = name.replace(a, b);
     }
+    name
+}
+
+pub fn generic_name_clean(name: &str) -> String {
+    let name = normalize_name(name);
     let part_re = Regex::new(r"\((part (?:[a-zA-Z]+|[0-9]+))\)").unwrap();
-    if part_re.is_match(&name) {
-        name = part_re.replace_all(&name, "$1").to_string();
-    }
+    let name = if part_re.is_match(&name) {
+        part_re.replace_all(&name, "$1").to_string()
+    } else {
+        name
+    };
     let name = clean_enclosure(&name, '(', ')');
     let name = clean_enclosure(&name, '[', ']');
     name.trim_end().to_string()
@@ -134,5 +141,17 @@ mod tests {
         let name = "test (feat. test) test (feat. test2)";
         let res = clean_enclosure(name, '(', ')');
         assert_eq!(res, "test  test");
+    }
+
+    #[test]
+    fn test_normalize_name_preserves_qualifiers() {
+        let name = "Circus Bells (Hardfloor Remix)";
+        assert_eq!(normalize_name(name), "circus bells (hardfloor remix)");
+    }
+
+    #[test]
+    fn test_generic_name_clean_unchanged_after_refactor() {
+        let name = "Circus Bells (Hardfloor Remix)";
+        assert_eq!(generic_name_clean(name), "circus bells");
     }
 }
