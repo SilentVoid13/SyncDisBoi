@@ -157,6 +157,7 @@ Files are saved in the `debug/` folder:
 - `missing_songs.json`: list of tracks that couldn’t be synchronized
 - `new_songs.json`: list of tracks successfully synchronized
 - `songs_with_no_albums.json`: list of songs skipped due to missing album metadata
+- `missing_likes.json`: list of liked songs that couldn't be matched on the destination platform (only written when `--sync-likes` is also set)
 
 ## Contributing
 
