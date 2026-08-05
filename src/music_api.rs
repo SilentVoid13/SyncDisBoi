@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
@@ -15,6 +15,44 @@ pub type DynMusicApi = Box<dyn MusicApi + Sync>;
 
 fn name_score(a: &str, b: &str) -> f64 {
     normalized_levenshtein(a, b).abs()
+}
+
+fn word_tokens(name: &str) -> HashSet<&str> {
+    name.split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Whether two album names plausibly refer to the same album. A whole-string
+/// similarity score alone unfairly punishes box-set/compilation/reissue
+/// naming (e.g. "Floodland Collection" vs "Floodland", "X Box Set" vs "X")
+/// purely for the added length, even when every word of the shorter name is
+/// present in the longer one. Treat that word-superset case as a match too,
+/// the same way a mismatched ISRC doesn't block a match on its own.
+fn album_names_resemble(a: &str, b: &str) -> bool {
+    if name_score(a, b) >= 0.8 {
+        return true;
+    }
+    let tokens_a = word_tokens(a);
+    let tokens_b = word_tokens(b);
+    if tokens_a.is_empty() || tokens_b.is_empty() {
+        return false;
+    }
+    let (smaller, larger) = if tokens_a.len() <= tokens_b.len() {
+        (&tokens_a, &tokens_b)
+    } else {
+        (&tokens_b, &tokens_a)
+    };
+    // The contained side needs to carry enough signal of its own for the
+    // match to be meaningful, not just a coincidence -- either several
+    // words, or (if it's a single word) a long, distinctive one. Otherwise
+    // a short/generic album name ("Live", "Hits") would "contain"/"be
+    // contained by" any album whose title happens to include that word.
+    let longest_word_len = smaller.iter().map(|w| w.chars().count()).max().unwrap_or(0);
+    if smaller.len() < 2 && longest_word_len < 6 {
+        return false;
+    }
+    smaller.is_subset(larger)
 }
 
 #[async_trait]
@@ -145,8 +183,14 @@ impl Song {
 
     pub fn is_single(&self) -> bool {
         // TODO: improve this, leverage metadata from APIs when it exists
+        //
+        // Compare cleaned names, not raw ones: a single's `album.name` is
+        // typically the bare title, while the track's own `name` often
+        // carries a "(feat. X) - Y remix" qualifier the album name never
+        // does. A raw comparison would miss exactly the remix/feat. singles
+        // this check exists to recognize.
         if let Some(album) = &self.album {
-            album.name == self.name
+            album.clean_name() == self.clean_name()
         } else {
             false
         }
@@ -207,8 +251,7 @@ impl Song {
                 // Check album name resemblance
                 let name1 = album1.clean_name();
                 let name2 = album2.clean_name();
-                let score = normalized_levenshtein(&name1, &name2).abs();
-                if score < 0.8 {
+                if !album_names_resemble(&name1, &name2) {
                     return false;
                 }
             }
@@ -528,6 +571,111 @@ mod tests {
         let a = song(MusicApiType::Spotify, "sp-1", &[], 0);
         let b = song(MusicApiType::Spotify, "sp-2", &[], 500);
         assert!(a.compare(&b, true));
+    }
+
+    #[test]
+    fn is_single_recognizes_remix_titled_single_via_clean_name() {
+        // A Spotify single's `album.name` is typically the bare title, while
+        // the track's own `name` carries a "(feat. X) - Y remix" qualifier
+        // the album name never has. Comparing the raw names therefore always
+        // misses these, even though the release is unambiguously a single.
+        let mut a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        a.name = "Let Me - Rave Mix".to_string();
+        a.album = Some(Album {
+            id: None,
+            name: "Let Me".to_string(),
+        });
+        assert!(a.is_single());
+    }
+
+    #[test]
+    fn compare_matches_remix_titled_single_vs_album_track() {
+        let mut a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        a.name = "Let Me - Rave Mix".to_string();
+        a.album = Some(Album {
+            id: None,
+            name: "Let Me".to_string(),
+        });
+        let mut b = song(MusicApiType::Tidal, "sub-1", &[], 200_000);
+        b.name = "Let Me - Rave Mix".to_string();
+        b.album = Some(Album {
+            id: None,
+            name: "Some Completely Different Album".to_string(),
+        });
+        assert!(a.compare(&b, true));
+    }
+
+    #[test]
+    fn compare_matches_when_album_name_is_a_superset_reissue_variant() {
+        // e.g. a box-set/compilation reissue: "Floodland Collection" is
+        // unambiguously the same album as "Floodland", just filed under a
+        // reissue-specific name. A whole-string similarity score alone
+        // (normalized_levenshtein) drops well under 0.8 here purely because
+        // of the length difference, even though every word in the shorter
+        // name is present in the longer one.
+        let mut a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        a.album = Some(Album {
+            id: None,
+            name: "Floodland Collection".to_string(),
+        });
+        let mut b = song(MusicApiType::Tidal, "sub-1", &[], 200_000);
+        b.album = Some(Album {
+            id: None,
+            name: "Floodland".to_string(),
+        });
+        assert!(a.compare(&b, true));
+    }
+
+    #[test]
+    fn compare_matches_when_album_name_has_extra_inserted_words_not_just_a_suffix() {
+        // Same real-world pattern, but the extra words aren't just appended
+        // at the end -- "Hôtel Costes 7" vs "Hôtel Costes, Volume 7" -- so a
+        // simple prefix check wouldn't catch it; token-set containment does.
+        let mut a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        a.album = Some(Album {
+            id: None,
+            name: "Hôtel Costes 7".to_string(),
+        });
+        let mut b = song(MusicApiType::Tidal, "sub-1", &[], 200_000);
+        b.album = Some(Album {
+            id: None,
+            name: "Hôtel Costes, Volume 7".to_string(),
+        });
+        assert!(a.compare(&b, true));
+    }
+
+    #[test]
+    fn compare_rejects_when_album_names_are_unrelated() {
+        let mut a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        a.album = Some(Album {
+            id: None,
+            name: "Totally Different Album".to_string(),
+        });
+        let mut b = song(MusicApiType::Tidal, "sub-1", &[], 200_000);
+        b.album = Some(Album {
+            id: None,
+            name: "Floodland".to_string(),
+        });
+        assert!(!a.compare(&b, true));
+    }
+
+    #[test]
+    fn compare_rejects_when_shorter_album_name_is_a_short_generic_word() {
+        // A single short, generic word ("Live") is a token-subset of almost
+        // any album whose title happens to contain it -- unlike a
+        // distinctive single word ("Floodland"), it shouldn't be enough on
+        // its own to call two unrelated albums a match.
+        let mut a = song(MusicApiType::Spotify, "sp-1", &[], 200_000);
+        a.album = Some(Album {
+            id: None,
+            name: "Live".to_string(),
+        });
+        let mut b = song(MusicApiType::Tidal, "sub-1", &[], 200_000);
+        b.album = Some(Album {
+            id: None,
+            name: "Live From Wembley".to_string(),
+        });
+        assert!(!a.compare(&b, true));
     }
 
     #[test]
