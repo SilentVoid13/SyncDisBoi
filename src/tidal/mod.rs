@@ -355,7 +355,7 @@ impl MusicApi for TidalApi {
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
-        if let Some(isrc) = &song.isrc {
+        for isrc in &song.isrc {
             let url = format!("{}/tracks", Self::API_V2_URL);
             let params = json!({
                 "countryCode": self.country_code,
@@ -366,11 +366,11 @@ impl MusicApi for TidalApi {
                 .make_request_json(&url, &HttpMethod::Get(&params), Some((1, 0)))
                 .await?;
             if res.data.is_empty() {
-                return Ok(None);
+                continue;
             }
             let mut res_songs: Songs = res.try_into()?;
             if res_songs.0.is_empty() {
-                return Ok(None);
+                continue;
             }
             return Ok(Some(res_songs.0.remove(0)));
         }

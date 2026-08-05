@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use futures::future::try_join_all;
@@ -106,7 +108,10 @@ pub struct Song {
     pub source: MusicApiType,
     pub id: String,
     pub sid: Option<String>,
-    pub isrc: Option<String>,
+    /// All valid ISRCs known for this song. Usually a single value, but a
+    /// recording can legitimately have more than one (e.g. reissue codes);
+    /// `compare()` matches if either side has any code in common.
+    pub isrc: Vec<String>,
     pub name: String,
     pub album: Option<Album>,
     pub artists: Vec<Artist>,
@@ -139,8 +144,8 @@ impl Song {
         if self.source == other.source {
             return self.id == other.id;
         }
-        if self.isrc.is_some() && other.isrc.is_some() {
-            return self.isrc == other.isrc;
+        if !self.isrc.is_empty() && !other.isrc.is_empty() {
+            return self.isrc.iter().any(|i| other.isrc.contains(i));
         }
 
         // Check song name resemblance
@@ -213,6 +218,52 @@ impl Song {
             }
         }
         queries
+    }
+}
+
+/// Speeds up repeated `songs.contains(song)`-style membership checks against
+/// a fixed list. `Song::compare` only ever returns `true` via an ISRC overlap
+/// or a duration match within 1s, so candidates can be narrowed down by
+/// those two keys before running the full (more expensive) comparison,
+/// instead of scanning the whole list for every lookup.
+pub struct SongIndex<'a> {
+    by_isrc: HashMap<&'a str, Vec<&'a Song>>,
+    by_duration_bucket: HashMap<i64, Vec<&'a Song>>,
+}
+
+impl<'a> SongIndex<'a> {
+    pub fn build(songs: &'a [Song]) -> Self {
+        let mut by_isrc: HashMap<&str, Vec<&Song>> = HashMap::new();
+        let mut by_duration_bucket: HashMap<i64, Vec<&Song>> = HashMap::new();
+        for song in songs {
+            for isrc in &song.isrc {
+                by_isrc.entry(isrc.as_str()).or_default().push(song);
+            }
+            let bucket: i64 = (song.duration_ms / 1000).try_into().unwrap_or(i64::MAX);
+            by_duration_bucket.entry(bucket).or_default().push(song);
+        }
+        Self {
+            by_isrc,
+            by_duration_bucket,
+        }
+    }
+
+    /// Equivalent to `songs.contains(song)` for the slice this index was
+    /// built from.
+    pub fn contains(&self, song: &Song) -> bool {
+        for isrc in &song.isrc {
+            if let Some(candidates) = self.by_isrc.get(isrc.as_str()) {
+                if candidates.iter().any(|c| song.compare(c)) {
+                    return true;
+                }
+            }
+        }
+        let bucket: i64 = (song.duration_ms / 1000).try_into().unwrap_or(i64::MAX);
+        (bucket - 1..=bucket + 1).any(|b| {
+            self.by_duration_bucket
+                .get(&b)
+                .is_some_and(|candidates| candidates.iter().any(|c| song.compare(c)))
+        })
     }
 }
 
@@ -290,4 +341,86 @@ pub struct OAuthRefreshToken {
     pub expires_in: u64,
     pub scope: String,
     pub token_type: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn song(source: MusicApiType, id: &str, isrc: &[&str], duration_ms: usize) -> Song {
+        Song {
+            source,
+            id: id.to_string(),
+            sid: None,
+            isrc: isrc.iter().copied().map(str::to_string).collect(),
+            name: "Same Name".to_string(),
+            album: None,
+            artists: vec![],
+            duration_ms,
+        }
+    }
+
+    #[test]
+    fn compare_matches_when_either_side_has_an_overlapping_isrc() {
+        // e.g. a Tidal recording tagged with multiple reissue ISRCs, one
+        // of which happens to be the single ISRC the other platform reports.
+        let a = song(
+            MusicApiType::Tidal,
+            "sub-1",
+            &["GBBTF0400057", "USSM19501100"],
+            200_000,
+        );
+        let b = song(MusicApiType::Spotify, "sp-1", &["USSM19501100"], 999_000);
+        assert!(a.compare(&b));
+        assert!(b.compare(&a));
+    }
+
+    #[test]
+    fn compare_rejects_when_isrcs_are_present_but_disjoint() {
+        let a = song(MusicApiType::Tidal, "sub-1", &["AAAAA1111111"], 200_000);
+        let b = song(MusicApiType::Spotify, "sp-1", &["BBBBB2222222"], 200_000);
+        assert!(!a.compare(&b));
+    }
+
+    #[test]
+    fn song_index_matches_naive_contains_via_isrc() {
+        let haystack = vec![
+            song(MusicApiType::Tidal, "sub-1", &["AAAAA1111111"], 200_000),
+            song(MusicApiType::Tidal, "sub-2", &["BBBBB2222222"], 999_000),
+        ];
+        let index = SongIndex::build(&haystack);
+
+        let needle = song(MusicApiType::Spotify, "sp-1", &["AAAAA1111111"], 42_000);
+        assert!(haystack.contains(&needle));
+        assert!(index.contains(&needle));
+    }
+
+    #[test]
+    fn song_index_matches_naive_contains_via_duration_bucket() {
+        let haystack = vec![song(MusicApiType::Tidal, "sub-1", &[], 200_000)];
+        let index = SongIndex::build(&haystack);
+
+        // within the 1s tolerance, no shared ISRC
+        let mut needle = song(MusicApiType::Spotify, "sp-1", &[], 200_900);
+        needle.name = "Same Name".to_string();
+        assert!(haystack.contains(&needle));
+        assert!(index.contains(&needle));
+
+        // outside the 1s tolerance
+        let mut far = song(MusicApiType::Spotify, "sp-2", &[], 210_000);
+        far.name = "Same Name".to_string();
+        assert!(!haystack.contains(&far));
+        assert!(!index.contains(&far));
+    }
+
+    #[test]
+    fn song_index_rejects_absent_song() {
+        let haystack = vec![song(MusicApiType::Tidal, "sub-1", &["AAAAA1111111"], 200_000)];
+        let index = SongIndex::build(&haystack);
+
+        let mut needle = song(MusicApiType::Spotify, "sp-1", &["ZZZZZ9999999"], 999_000);
+        needle.name = "Nothing Like It".to_string();
+        assert!(!haystack.contains(&needle));
+        assert!(!index.contains(&needle));
+    }
 }

@@ -414,9 +414,7 @@ impl MusicApi for SpotifyApi {
         let max_len = 100;
         let mut queries = vec![];
 
-        if let Some(isrc) = &song.isrc {
-            queries.push(format!("isrc:{}", isrc));
-        } else {
+        if song.isrc.is_empty() {
             let mut track_query = format!("track:\"{}\"", song.clean_name());
             if track_query.len() > max_len {
                 warn!(
@@ -457,6 +455,10 @@ impl MusicApi for SpotifyApi {
                         format!("{} {} {}", track_query, artist_query, album_query);
                     push_query(&mut queries, tr_ar_al_query, max_len);
                 }
+            }
+        } else {
+            for isrc in &song.isrc {
+                queries.push(format!("isrc:{}", isrc));
             }
         }
 
@@ -505,7 +507,19 @@ mod tests {
     use super::*;
     use crate::yt_music::YtMusicApi;
 
+    fn test_config() -> ConfigArgs {
+        ConfigArgs {
+            debug: false,
+            like_all: false,
+            sync_likes: false,
+            diff_country: false,
+            proxy: None,
+            search_concurrency: 8,
+        }
+    }
+
     #[tokio::test]
+    #[ignore = "requires live YTMUSIC_*/SPOTIFY_* credentials and a real 'TestSpotify' playlist"]
     async fn test_spotify_search_from_ytmusic() {
         let yt_client_id = env::var("YTMUSIC_CLIENT_ID").unwrap();
         let yt_client_secret = env::var("YTMUSIC_CLIENT_SECRET").unwrap();
@@ -516,7 +530,7 @@ mod tests {
             &yt_client_secret,
             oauth_token_path,
             false,
-            None,
+            test_config(),
         )
         .await
         .unwrap();
@@ -527,9 +541,18 @@ mod tests {
 
         let spotify_client_id = env::var("SPOTIFY_CLIENT_ID").unwrap();
         let spotify_secret = env::var("SPOTIFY_CLIENT_SECRET").unwrap();
-        let spotify = SpotifyApi::new(&spotify_client_id, &spotify_secret, None)
-            .await
-            .unwrap();
+        let config_dir = dirs::config_dir().unwrap();
+        let oauth_token_path = config_dir.join("SyncDisBoi").join("spotify_oauth.json");
+        let spotify = SpotifyApi::new(
+            &spotify_client_id,
+            &spotify_secret,
+            oauth_token_path,
+            SpotifyApi::REDIRECT_URI_URL,
+            false,
+            test_config(),
+        )
+        .await
+        .unwrap();
 
         let songs = spotify.search_songs(&songs).await.unwrap();
         let correct_ids = [
