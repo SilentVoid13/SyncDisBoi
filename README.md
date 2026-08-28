@@ -4,6 +4,7 @@ SyncDisBoi is a simple and efficient tool designed to synchronize playlists acro
 - [Youtube Music](https://music.youtube.com/)
 - [Spotify](https://open.spotify.com/)
 - [Tidal](https://tidal.com/)
+- [ListenBrainz](https://listenbrainz.org/)
 
 SyncDisBoi is the ideal tool for music enthusiasts who want to:
 - Seamlessly migrate to a new music platform while preserving their playlists and likes
@@ -99,6 +100,19 @@ Here are some command examples:
 ./sync_dis_boi \
     yt-music --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
     import -i ./yt_music.json
+
+# sync from Spotify to ListenBrainz
+./sync_dis_boi \
+    spotify --client-id "<CLIENT_ID>" --client-secret "<CLIENT_SECRET>" \
+    listenbrainz --token "<TOKEN>"
+# import a JSON export into ListenBrainz
+./sync_dis_boi \
+    listenbrainz --token "<TOKEN>" \
+    import -i ./canon.json
+# export ListenBrainz playlists to JSON
+./sync_dis_boi \
+    listenbrainz --token "<TOKEN>" \
+    export -o ./listenbrainz.json
 ```
 
 ### Spotify API setup
@@ -147,6 +161,15 @@ After the first authorization, the OAuth token will be cached in `~/.config/Sync
 Notes:
 - By default, SyncDisBoi uses Tidal's "Android Auto" application credentials to request OAuth access.
 - However, you can also create your own Tidal application and then use it in SyncDisBoi by providing its client id and client secret.
+
+### ListenBrainz API setup
+
+- Copy your user token from [your ListenBrainz settings page](https://listenbrainz.org/settings/).
+- Pass it with `--token`, or set the `LISTENBRAINZ_TOKEN` environment variable.
+- Use `--api-url` to point at a self-hosted ListenBrainz instance.
+
+Notes:
+- MusicBrainz allows one request per second, and SyncDisBoi respects it. It might be slower than other platforms.
 
 ### Debug mode
 

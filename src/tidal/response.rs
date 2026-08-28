@@ -92,6 +92,8 @@ impl TryInto<Song> for TidalSongResponse {
         let album = Album {
             id: Some(album.id.to_string()),
             name: album.title,
+            // filled by `fill_album_barcodes`
+            upc: None,
         };
         let artists = self
             .artists
@@ -197,6 +199,7 @@ fn media_data_to_song(data: TidalMediaData, included: &[TidalMediaData]) -> Resu
         album = Some(Album {
             id: Some(album_data.id.clone()),
             name: title,
+            upc: album_data.attributes.barcode_id.clone(),
         });
     }
     if let Some(artists_rel) = data

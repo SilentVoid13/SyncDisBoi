@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Result, WrapErr};
 use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use strsim::normalized_levenshtein;
@@ -14,13 +14,15 @@ pub type DynMusicApi = Box<dyn MusicApi + Sync>;
 #[async_trait]
 pub trait MusicApi {
     fn api_type(&self) -> MusicApiType;
-    fn country_code(&self) -> &str;
+    /// The account's ISO 3166-1 alpha-2 country, or `None` when the platform
+    /// isn't region-locked or doesn't say.
+    fn country_code(&self) -> Option<&str>;
 
     async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist>;
     async fn get_playlists_info(&self) -> Result<Vec<Playlist>>;
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>>;
 
-    async fn get_playlists_full(&self) -> Result<Vec<Playlist>> {
+    async fn get_playlists_full(&self, skip_inaccessible: bool) -> Result<Vec<Playlist>> {
         let mut playlists = self.get_playlists_info().await?;
 
         let mut requests = vec![];
@@ -31,15 +33,24 @@ pub trait MusicApi {
         // (order-preserving) instead of firing them all at once, which can
         // trip platform rate limiters (e.g. Spotify 429) on large libraries.
         use futures::stream::StreamExt;
-        let results: Vec<_> = futures::stream::iter(requests)
-            .buffered(5)
-            .collect()
-            .await;
+        let results: Vec<_> = futures::stream::iter(requests).buffered(5).collect().await;
         for (i, songs) in results.into_iter().enumerate() {
             match songs {
                 Ok(s) => playlists[i].songs = s,
                 Err(e) => {
-                    tracing::warn!("skipping non-accessible playlist \"{}\": {}", playlists[i].name, e);
+                    if !skip_inaccessible {
+                        return Err(e).wrap_err(format!(
+                            "could not read the songs of destination playlist \"{}\"; \
+                             refusing to continue, because treating it as empty \
+                             would duplicate every track it already contains",
+                            playlists[i].name
+                        ));
+                    }
+                    tracing::warn!(
+                        "skipping non-accessible playlist \"{}\": {}",
+                        playlists[i].name,
+                        e
+                    );
                     playlists[i].songs = vec![];
                 }
             }
@@ -67,7 +78,14 @@ pub trait MusicApi {
         Ok(results)
     }
 
+    /// Lets platforms with a bulk lookup endpoint resolve many songs at once
+    /// before [`MusicApi::search_song`] is called on each of them.
+    async fn prefetch_searches(&self, _songs: &[Song]) -> Result<()> {
+        Ok(())
+    }
+
     async fn add_likes(&self, songs: &[Song]) -> Result<()>;
+    async fn remove_likes(&self, songs: &[Song]) -> Result<()>;
     async fn get_likes(&self) -> Result<Vec<Song>>;
 }
 
@@ -76,6 +94,7 @@ pub enum MusicApiType {
     Spotify,
     YtMusic,
     Tidal,
+    ListenBrainz,
 }
 
 impl MusicApiType {
@@ -84,6 +103,16 @@ impl MusicApiType {
             MusicApiType::Spotify => "spotify",
             MusicApiType::YtMusic => "ytmusic",
             MusicApiType::Tidal => "tidal",
+            MusicApiType::ListenBrainz => "listenbrainz",
+        }
+    }
+
+    /// `ListenBrainz` often has no recording length, so duration must not be
+    /// used to reject a match there.
+    pub const fn has_duration(&self) -> bool {
+        match self {
+            MusicApiType::Spotify | MusicApiType::YtMusic | MusicApiType::Tidal => true,
+            MusicApiType::ListenBrainz => false,
         }
     }
 }
@@ -116,7 +145,10 @@ pub struct Song {
 impl Song {
     pub fn clean_name(&self) -> String {
         match self.source {
-            MusicApiType::Spotify | MusicApiType::Tidal | MusicApiType::YtMusic => {
+            MusicApiType::Spotify
+            | MusicApiType::Tidal
+            | MusicApiType::YtMusic
+            | MusicApiType::ListenBrainz => {
                 let name = generic_name_clean(&self.name);
                 let name = name.split(" - ").next().unwrap_or(&name);
                 let name = name.split(" pts. ").next().unwrap_or(name);
@@ -159,13 +191,16 @@ impl Song {
         // Check song duration resemblance
         // NOTE: YtMusic duration is sometimes garbage, it's incorrect on certain songs
         // it's still better to use it for accuracy
-        let dur1 = self.duration_ms / 1000;
-        let dur2 = other.duration_ms / 1000;
+        if self.source.has_duration() && other.source.has_duration() {
+            let dur1 = self.duration_ms / 1000;
+            let dur2 = other.duration_ms / 1000;
 
-        // we allow a 1 second difference
-        if !(dur1 - 1..=dur1 + 1).contains(&dur2) {
-            debug!("Duration: {} vs {} --> {} VS {}", dur1, dur2, self, other);
-            return false;
+            // we allow a 2 seconds difference: platforms round differently,
+            // and YtMusic is often a second or two off
+            if dur1.abs_diff(dur2) > 2 {
+                debug!("Duration: {} vs {} --> {} VS {}", dur1, dur2, self, other);
+                return false;
+            }
         }
 
         if let (Some(album1), Some(album2)) = (&self.album, &other.album) {
@@ -246,6 +281,10 @@ impl std::fmt::Display for Song {
 pub struct Album {
     pub id: Option<String>,
     pub name: String,
+    /// The release barcode (UPC/EAN), used to resolve songs whose ISRC
+    /// `MusicBrainz` doesn't know.
+    #[serde(default)]
+    pub upc: Option<String>,
 }
 
 impl Album {

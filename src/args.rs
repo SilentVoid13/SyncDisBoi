@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use sync_dis_boi::{ConfigArgs, spotify::SpotifyApi};
+use sync_dis_boi::{
+    ConfigArgs, listenbrainz::ListenBrainzApi, spotify::SpotifyApi, tidal::TidalApi,
+};
 use tracing::Level;
 
 #[derive(Parser, Debug)]
@@ -19,10 +21,6 @@ pub struct RootArgs {
     pub logging: LoggingLevel,
 }
 
-const TIDAL_DEFAULT_CLIENT_ID: &str =
-    "\x66\x58\x32\x4a\x78\x64\x6d\x6e\x74\x5a\x57\x4b\x30\x69\x78\x54";
-const TIDAL_DEFAULT_CLIENT_SECRET: &str = "\x4d\x55\x35\x75\x4f\x55\x46\x6d\x52\x45\x46\x71\x65\x48\x4a\x6e\x53\x6b\x5a\x4b\x59\x6b\x74\x4f\x56\x30\x78\x6c\x51\x58\x6c\x4c\x52\x31\x5a\x48\x62\x55\x6c\x4f\x64\x56\x68\x51\x55\x45\x78\x49\x56\x6c\x68\x42\x64\x6e\x68\x42\x5a\x7a\x30\x3d";
-
 #[derive(Subcommand, Clone, Debug)]
 #[command(subcommand_value_name = "SRC_PLATFORM")]
 pub enum MusicPlatformSrc {
@@ -31,17 +29,12 @@ pub enum MusicPlatformSrc {
         #[arg(long)]
         headers: Option<PathBuf>,
         /// The client ID for the Youtube API application
-        #[arg(
-            long,
-            env = "YTMUSIC_CLIENT_ID",
-            conflicts_with = "headers",
-            requires = "client_secret"
-        )]
+        #[arg(long, env = "YTMUSIC_CLIENT_ID", requires = "client_secret")]
         client_id: Option<String>,
         /// The client secret for the Youtube API application
-        #[arg(long, env = "YTMUSIC_CLIENT_SECRET", conflicts_with = "headers")]
+        #[arg(long, env = "YTMUSIC_CLIENT_SECRET")]
         client_secret: Option<String>,
-        /// Clear the cached ytmusic_oauth.json file
+        /// Clear the cached `ytmusic_oauth.json` file
         #[arg(long, requires = "client_id", requires = "client_secret")]
         clear_cache: bool,
         /// The destination music platform
@@ -67,14 +60,27 @@ pub enum MusicPlatformSrc {
     },
     Tidal {
         /// The client ID for the Tidal API application
-        #[arg(long, env = "TIDAL_CLIENT_ID", default_value = TIDAL_DEFAULT_CLIENT_ID)]
+        #[arg(long, env = "TIDAL_CLIENT_ID", default_value = TidalApi::DEFAULT_CLIENT_ID)]
         client_id: String,
         /// The client secret for the Tidal API application
-        #[arg(long, env = "TIDAL_CLIENT_SECRET", default_value = TIDAL_DEFAULT_CLIENT_SECRET)]
+        #[arg(long, env = "TIDAL_CLIENT_SECRET", default_value = TidalApi::DEFAULT_CLIENT_SECRET)]
         client_secret: String,
         /// Clear the cached `tidal_oauth.json` file
         #[arg(long)]
         clear_cache: bool,
+        /// The destination music platform
+        #[command(subcommand)]
+        dst: MusicPlatformDst,
+    },
+    #[allow(clippy::doc_markdown)]
+    #[command(name = "listenbrainz", alias = "lb")]
+    ListenBrainz {
+        /// The user token from https://listenbrainz.org/settings/
+        #[arg(long, env = "LISTENBRAINZ_TOKEN")]
+        token: String,
+        /// The base URL of the ListenBrainz API (for self-hosted instances)
+        #[arg(long, env = "LISTENBRAINZ_API_URL", default_value = ListenBrainzApi::BASE_API)]
+        api_url: String,
         /// The destination music platform
         #[command(subcommand)]
         dst: MusicPlatformDst,
@@ -107,17 +113,12 @@ pub enum MusicPlatformDst {
         #[arg(long)]
         headers: Option<PathBuf>,
         /// The client ID for the Youtube API application
-        #[arg(
-            long,
-            env = "YTMUSIC_CLIENT_ID",
-            conflicts_with = "headers",
-            requires = "client_secret"
-        )]
+        #[arg(long, env = "YTMUSIC_CLIENT_ID", requires = "client_secret")]
         client_id: Option<String>,
         /// The client secret for the Youtube API application
-        #[arg(long, env = "YTMUSIC_CLIENT_SECRET", conflicts_with = "headers")]
+        #[arg(long, env = "YTMUSIC_CLIENT_SECRET")]
         client_secret: Option<String>,
-        /// Clear the cached ytmusic_oauth.json file
+        /// Clear the cached `ytmusic_oauth.json` file
         #[arg(long, requires = "client_id", requires = "client_secret")]
         clear_cache: bool,
     },
@@ -137,14 +138,24 @@ pub enum MusicPlatformDst {
     },
     Tidal {
         /// The client ID for the Tidal API application
-        #[arg(long, env = "TIDAL_CLIENT_ID", default_value = TIDAL_DEFAULT_CLIENT_ID)]
+        #[arg(long, env = "TIDAL_CLIENT_ID", default_value = TidalApi::DEFAULT_CLIENT_ID)]
         client_id: String,
-        #[arg(long, env = "TIDAL_CLIENT_SECRET", default_value = TIDAL_DEFAULT_CLIENT_SECRET)]
+        #[arg(long, env = "TIDAL_CLIENT_SECRET", default_value = TidalApi::DEFAULT_CLIENT_SECRET)]
         /// The client secret for the Tidal API application
         client_secret: String,
         /// Clear the cached `tidal_oauth.json` file
         #[arg(long)]
         clear_cache: bool,
+    },
+    #[allow(clippy::doc_markdown)]
+    #[command(name = "listenbrainz", alias = "lb")]
+    ListenBrainz {
+        /// The user token from https://listenbrainz.org/settings/
+        #[arg(long, env = "LISTENBRAINZ_TOKEN")]
+        token: String,
+        /// The base URL of the ListenBrainz API (for self-hosted instances)
+        #[arg(long, env = "LISTENBRAINZ_API_URL", default_value = ListenBrainzApi::BASE_API)]
+        api_url: String,
     },
     Export {
         /// The path to the file to export the playlists to

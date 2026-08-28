@@ -87,6 +87,7 @@ impl TryInto<Songs> for YtMusicResponse {
                 Some(Album {
                     id: mrlir.get_col_run_id(2, 0, true),
                     name: mrlir.get_col_run_text(2, 0, true)?,
+                    upc: None,
                 })
             });
             let mut artists: Vec<Artist> = vec![];
@@ -164,6 +165,7 @@ impl TryInto<SearchSongs> for YtMusicResponse {
                         album = Some(Album {
                             id: Some(id),
                             name: text,
+                            upc: None,
                         });
                     } else {
                         artists.push(Artist {
@@ -247,6 +249,7 @@ impl TryInto<SearchSongUnique> for YtMusicResponse {
                     album = Some(Album {
                         id: Some(id),
                         name: text,
+                        upc: None,
                     });
                 } else {
                     artists.push(Artist {

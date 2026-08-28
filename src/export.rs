@@ -7,7 +7,7 @@ use crate::music_api::DynMusicApi;
 
 pub async fn export(src_api: DynMusicApi, output: &Path, minify: bool) -> Result<()> {
     info!("retrieving playlists...");
-    let src_playlists = src_api.get_playlists_full().await?;
+    let src_playlists = src_api.get_playlists_full(true).await?;
 
     info!("exporting playlists...");
     if minify {

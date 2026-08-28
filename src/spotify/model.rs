@@ -6,9 +6,10 @@ pub struct SpotifyEmptyResponse {}
 #[derive(Deserialize, Debug)]
 #[allow(dead_code)]
 pub struct SpotifyUserResponse {
-    pub country: String,
+    /// Absent for Development Mode apps since the February 2026 API change.
+    pub country: Option<String>,
     pub display_name: Option<String>,
-    pub email: String,
+    pub email: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -56,7 +57,13 @@ pub struct SpotifyPlaylistResponse {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct SpotifySongItemResponse {
+pub struct SpotifyPlaylistItemResponse {
+    /// Current playlist-item field. The old `track` alias is deprecated.
+    pub item: Option<SpotifySongResponse>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SpotifySavedTrackResponse {
     pub track: Option<SpotifySongResponse>,
 }
 
@@ -83,12 +90,15 @@ pub struct SpotifyAlbumResponse {
     // id can be null if the song is a local import
     pub id: Option<String>,
     pub name: String,
+    /// Only present on the full album resource, never on the simplified album
+    /// embedded in a playlist track.
+    #[serde(default)]
+    pub external_ids: Option<SpotifyExternalIdsResponse>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct SpotifyExternalIdsResponse {
     // isrc can be null if the song is now deleted/unavailable
     pub isrc: Option<String>,
-    #[allow(dead_code)]
     pub upc: Option<String>,
 }

@@ -5,8 +5,8 @@ use serde::Deserialize;
 use tracing::{debug, error};
 
 use super::model::{
-    SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySearchResponse, SpotifySongItemResponse,
-    SpotifySongResponse,
+    SpotifyPageResponse, SpotifyPlaylistItemResponse, SpotifyPlaylistResponse,
+    SpotifySavedTrackResponse, SpotifySearchResponse, SpotifySongResponse,
 };
 use crate::{
     music_api::{Album, Artist, MusicApiType, Playlist, Playlists, Song, Songs},
@@ -86,11 +86,19 @@ impl TryInto<Playlist> for SpotifyPlaylistResponse {
     }
 }
 
-impl TryInto<Song> for SpotifySongItemResponse {
+impl TryInto<Song> for SpotifyPlaylistItemResponse {
     type Error = Error;
 
     fn try_into(self) -> Result<Song, Self::Error> {
-        self.track.ok_or_eyre("null track metadata")?.try_into()
+        self.item.ok_or_eyre("null playlist item metadata")?.try_into()
+    }
+}
+
+impl TryInto<Song> for SpotifySavedTrackResponse {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Song, Self::Error> {
+        self.track.ok_or_eyre("null saved track metadata")?.try_into()
     }
 }
 
@@ -115,6 +123,8 @@ impl TryInto<Song> for SpotifySongResponse {
         let album = Album {
             id: self.album.id,
             name: self.album.name,
+            // filled by `fill_album_barcodes`
+            upc: None,
         };
 
         let isrc = clean_isrc(self.external_ids.isrc);

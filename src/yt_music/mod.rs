@@ -274,8 +274,9 @@ impl YtMusicApi {
         while let Some(cont) = continuation {
             let mut response2: YtMusicContinuationResponse =
                 self.make_request(path, body, Some(&cont)).await?;
-            response.merge(&mut response2);
+            // before merging: the merge moves the continuation item out
             continuation = response2.get_continuation();
+            response.merge(&mut response2);
         }
         Ok(response)
     }
@@ -293,11 +294,18 @@ impl YtMusicApi {
         let endpoint = Self::build_endpoint(path, ctoken);
         let res = self.client.post(&endpoint).json(&body).send().await?;
         let status = res.status();
-        let obj = debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
+        // Parse as `Value` first so a failed request reports the server's
+        // message instead of a missing field of the expected response.
+        let val: serde_json::Value =
+            debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
         if !status.is_success() {
-            return Err(eyre!("Invalid HTTP status: {}", status));
+            let msg = val
+                .pointer("/error/message")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("<no error message>");
+            return Err(eyre!("YouTube Music API error {} on {}: {}", status, path, msg));
         }
-        Ok(obj)
+        Ok(serde_json::from_value(val)?)
     }
 
     pub fn clean_playlist_id(id: &str) -> String {
@@ -314,9 +322,9 @@ impl MusicApi for YtMusicApi {
         MusicApiType::YtMusic
     }
 
-    fn country_code(&self) -> &'static str {
+    fn country_code(&self) -> Option<&str> {
         // TODO: it seems impossible to get the country code from YtMusic
-        "UNKNOWN"
+        None
     }
 
     async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist> {
@@ -340,7 +348,10 @@ impl MusicApi for YtMusicApi {
         let browse_id = "FEmusic_liked_playlists";
         let body = json!({ "browseId": browse_id });
         let response = self.paginated_request("browse", &body).await?;
-        let playlists: Playlists = response.try_into()?;
+        let mut playlists: Playlists = response.try_into()?;
+        // Mixes ("RD" ids, e.g. "My Supermix") are generated on the fly and
+        // paginate endlessly; they aren't the user's content.
+        playlists.0.retain(|p| !p.id.starts_with("RD"));
         Ok(playlists.0)
     }
 
@@ -435,24 +446,25 @@ impl MusicApi for YtMusicApi {
                 res_song.isrc = Some(isrc.clone());
                 return Ok(Some(res_song));
             }
-        } else {
-            let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
-            let params = format!("EgWKAQ{}{}", "II", ignore_spelling);
-            let mut queries = song.build_queries();
-            while let Some(query) = queries.pop() {
-                let body = json!({
-                    "query": query,
-                    "params": params,
-                });
-                let response = self
-                    .make_request::<YtMusicResponse>("search", &body, None)
-                    .await?;
-                let res_songs: SearchSongs = response.try_into()?;
-                // iterate over top 3 results
-                for res_song in res_songs.0.into_iter().take(3) {
-                    if song.compare(&res_song) {
-                        return Ok(Some(res_song));
-                    }
+        }
+        // Also when YouTube Music doesn't know the ISRC: the song may still be
+        // in its catalog under another one.
+        let ignore_spelling = "AUICCAFqDBAOEAoQAxAEEAkQBQ%3D%3D";
+        let params = format!("EgWKAQ{}{}", "II", ignore_spelling);
+        let mut queries = song.build_queries();
+        while let Some(query) = queries.pop() {
+            let body = json!({
+                "query": query,
+                "params": params,
+            });
+            let response = self
+                .make_request::<YtMusicResponse>("search", &body, None)
+                .await?;
+            let res_songs: SearchSongs = response.try_into()?;
+            // iterate over top 3 results
+            for res_song in res_songs.0.into_iter().take(3) {
+                if song.compare(&res_song) {
+                    return Ok(Some(res_song));
                 }
             }
         }
@@ -472,11 +484,21 @@ impl MusicApi for YtMusicApi {
         Ok(())
     }
 
+    async fn remove_likes(&self, songs: &[Song]) -> Result<()> {
+        for song in songs {
+            let body = json!({
+                "target": {
+                    "videoId": song.id,
+                }
+            });
+            let _: YtMusicAddLikeResponse =
+                self.make_request("like/removelike", &body, None).await?;
+        }
+        Ok(())
+    }
+
     async fn get_likes(&self) -> Result<Vec<Song>> {
         let songs = self.get_playlist_songs("LM").await?;
         Ok(songs)
     }
 }
-
-#[cfg(test)]
-mod tests {}

@@ -3,7 +3,7 @@ use serde_json::json;
 use tracing::{debug, info, warn};
 
 use crate::ConfigArgs;
-use crate::music_api::{DynMusicApi, MusicApiType, Playlist, Song};
+use crate::music_api::{DynMusicApi, Playlist, Song};
 use crate::utils::dedup_songs;
 
 // TODO: Parse playlist owner to ignore platform-specific playlists?
@@ -31,16 +31,16 @@ pub async fn synchronize(
     config: ConfigArgs,
 ) -> Result<()> {
     if !config.diff_country
-        && src_api.api_type() != MusicApiType::YtMusic
-        && dst_api.api_type() != MusicApiType::YtMusic
-        && src_api.country_code() != dst_api.country_code()
+        && let (Some(src_country), Some(dst_country)) =
+            (src_api.country_code(), dst_api.country_code())
+        && src_country != dst_country
     {
         return Err(eyre!(
             "source and destination music platforms are in different countries ({} vs {}). \
                 You can specify --diff-country to allow it, \
                 but this might result in incorrect sync results.",
-            src_api.country_code(),
-            dst_api.country_code()
+            src_country,
+            dst_country
         ));
     }
 
@@ -49,7 +49,7 @@ pub async fn synchronize(
     }
 
     info!("retrieving source playlists...");
-    let src_playlists = src_api.get_playlists_full().await?;
+    let src_playlists = src_api.get_playlists_full(true).await?;
 
     synchronize_playlists(src_playlists, &dst_api, &config).await?;
 
@@ -71,7 +71,8 @@ pub async fn synchronize_playlists(
     let mut stats = json!({});
 
     info!("retrieving destination playlists...");
-    let mut dst_playlists = dst_api.get_playlists_full().await?;
+    // an unreadable destination playlist must abort, not be treated as empty
+    let mut dst_playlists = dst_api.get_playlists_full(false).await?;
     let mut dst_likes = vec![];
     if config.like_all {
         info!("retrieving destination likes...");
@@ -110,16 +111,25 @@ pub async fn synchronize_playlists(
 
         info!("synchronizing playlist \"{}\" ...", src_playlist.name);
 
+        // songs with neither album nor ISRC are skipped by the loop below anyway
+        let candidates: Vec<Song> = src_playlist
+            .songs
+            .iter()
+            .filter(|s| s.album.is_some() || s.isrc.is_some())
+            .cloned()
+            .collect();
+        dst_api.prefetch_searches(&candidates).await?;
+
         // 1. Search for each song in the destination playlist
         for src_song in &src_playlist.songs {
             // already in destination playlist
             if dst_playlist.songs.contains(src_song) {
                 continue;
             }
-            // no album metadata == youtube video
-            if src_song.album.is_none() {
+            // no album metadata == youtube video, unless an ISRC identifies it
+            if src_song.album.is_none() && src_song.isrc.is_none() {
                 warn!(
-                    "No album metadata for source song \"{}\", skipping",
+                    "No album metadata nor ISRC for source song \"{}\", skipping",
                     src_song
                 );
                 if config.debug {
@@ -276,6 +286,7 @@ pub async fn synchronize_likes(src_api: &DynMusicApi, dst_api: &DynMusicApi) -> 
     let mut attempts = 0;
 
     info!("searching for all missing likes on destination platform...");
+    dst_api.prefetch_searches(&src_likes).await?;
     for src_like in src_likes {
         if dst_likes.contains(&src_like) {
             continue;

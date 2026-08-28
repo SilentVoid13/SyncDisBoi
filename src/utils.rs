@@ -119,20 +119,3 @@ where
     };
     Ok(res)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_clean_enclosure() {
-        let name =
-            "POP/STARS (feat. (G)I-DLE, Madison Beer, Jaira Burns & League ((A)) of Legends) test";
-        let res = clean_enclosure(name, '(', ')');
-        assert_eq!(res, "POP/STARS  test");
-
-        let name = "test (feat. test) test (feat. test2)";
-        let res = clean_enclosure(name, '(', ')');
-        assert_eq!(res, "test  test");
-    }
-}

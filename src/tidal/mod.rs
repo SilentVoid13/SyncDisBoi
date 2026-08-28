@@ -1,6 +1,7 @@
 mod model;
 mod response;
 
+use std::collections::HashMap;
 use std::io::Read;
 use std::path::PathBuf;
 
@@ -11,7 +12,8 @@ use model::{TidalMediaResponse, TidalMediaResponseSingle, TidalOAuthDeviceRes};
 use reqwest::header::HeaderMap;
 use serde::de::{DeserializeOwned, IgnoredAny};
 use serde_json::json;
-use tracing::info;
+use tokio::sync::Mutex;
+use tracing::{debug, info};
 
 use self::model::{TidalPageResponse, TidalPlaylistResponse, TidalSongItemResponse};
 use crate::ConfigArgs;
@@ -27,6 +29,8 @@ pub struct TidalApi {
     config: ConfigArgs,
     user_id: String,
     country_code: String,
+    /// Memoised album id -> barcode.
+    album_barcodes: Mutex<HashMap<String, Option<String>>>,
 }
 
 #[derive(Debug)]
@@ -37,8 +41,12 @@ enum HttpMethod<'a> {
 }
 
 impl TidalApi {
+    pub const DEFAULT_CLIENT_ID: &'static str =
+        "\x66\x58\x32\x4a\x78\x64\x6d\x6e\x74\x5a\x57\x4b\x30\x69\x78\x54";
+    pub const DEFAULT_CLIENT_SECRET: &'static str = "\x4d\x55\x35\x75\x4f\x55\x46\x6d\x52\x45\x46\x71\x65\x48\x4a\x6e\x53\x6b\x5a\x4b\x59\x6b\x74\x4f\x56\x30\x78\x6c\x51\x58\x6c\x4c\x52\x31\x5a\x48\x62\x55\x6c\x4f\x64\x56\x68\x51\x55\x45\x78\x49\x56\x6c\x68\x42\x64\x6e\x68\x42\x5a\x7a\x30\x3d";
     const API_URL: &'static str = "https://api.tidal.com";
     const API_V2_URL: &'static str = "https://openapi.tidal.com/v2";
+    const ALBUMS_PER_LOOKUP: usize = 20;
 
     const AUTH_URL: &'static str = "https://auth.tidal.com/v1/oauth2/device_authorization";
     const TOKEN_URL: &'static str = "https://auth.tidal.com/v1/oauth2/token";
@@ -95,7 +103,24 @@ impl TidalApi {
             config,
             user_id: me_res.data.id,
             country_code,
+            album_barcodes: Mutex::new(HashMap::new()),
         })
+    }
+
+    async fn playlist_etag(&self, playlist_id: &str) -> Result<reqwest::header::HeaderValue> {
+        let url = format!("{}/v1/playlists/{}", Self::API_URL, playlist_id);
+        let params = json!({
+            "countryCode": self.country_code,
+        });
+        let res = self.client.get(&url).query(&params).send().await?;
+        let status = res.status();
+        let etag = res.headers().get("ETag").cloned();
+        let _: IgnoredAny =
+            debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
+        if !status.is_success() {
+            return Err(eyre!("Invalid HTTP status: {}", status));
+        }
+        etag.ok_or(eyre!("No ETag in Tidal Response"))
     }
 
     async fn request_token(
@@ -204,6 +229,68 @@ impl TidalApi {
         Ok(res)
     }
 
+    /// Attach the release barcode to every song's album. Failures are ignored.
+    async fn fill_album_barcodes(&self, songs: &mut [Song]) {
+        let mut todo: Vec<String> = Vec::new();
+        {
+            let cache = self.album_barcodes.lock().await;
+            let mut seen = std::collections::HashSet::new();
+            for song in songs.iter() {
+                if let Some(album) = &song.album
+                    && let Some(id) = &album.id
+                    && !cache.contains_key(id)
+                    && seen.insert(id.clone())
+                {
+                    todo.push(id.clone());
+                }
+            }
+        }
+
+        for chunk in todo.chunks(Self::ALBUMS_PER_LOOKUP) {
+            let url = format!("{}/albums", Self::API_V2_URL);
+            let mut params = vec![("countryCode", self.country_code.clone())];
+            for id in chunk {
+                params.push(("filter[id]", id.clone()));
+            }
+            let res: Result<TidalMediaResponse> = async {
+                let res = self.client.get(&url).query(&params).send().await?;
+                let status = res.status();
+                if !status.is_success() {
+                    return Err(eyre!("Invalid HTTP status: {}", status));
+                }
+                Ok(res.json::<TidalMediaResponse>().await?)
+            }
+            .await;
+
+            let mut cache = self.album_barcodes.lock().await;
+            match res {
+                Ok(res) => {
+                    for data in &res.data {
+                        cache.insert(data.id.clone(), data.attributes.barcode_id.clone());
+                    }
+                }
+                Err(e) => {
+                    debug!("tidal album barcode lookup failed: {}", e);
+                }
+            }
+            // Remember misses too, so they are not asked for again.
+            for id in chunk {
+                cache.entry(id.clone()).or_insert(None);
+            }
+        }
+
+        let cache = self.album_barcodes.lock().await;
+        for song in songs.iter_mut() {
+            if let Some(album) = &mut song.album
+                && album.upc.is_none()
+                && let Some(id) = &album.id
+                && let Some(Some(barcode)) = cache.get(id)
+            {
+                album.upc = Some(barcode.clone());
+            }
+        }
+    }
+
     async fn make_request_json<T>(
         &self,
         url: &str,
@@ -238,8 +325,8 @@ impl MusicApi for TidalApi {
         MusicApiType::Tidal
     }
 
-    fn country_code(&self) -> &str {
-        &self.country_code
+    fn country_code(&self) -> Option<&str> {
+        Some(&self.country_code)
     }
 
     async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist> {
@@ -286,7 +373,9 @@ impl MusicApi for TidalApi {
             .paginated_request(&url, &HttpMethod::Get(&params), 100)
             .await?;
         let songs: Songs = res.try_into()?;
-        Ok(songs.0)
+        let mut songs = songs.0;
+        self.fill_album_barcodes(&mut songs).await;
+        Ok(songs)
     }
 
     async fn add_songs_to_playlist(&self, playlist: &mut Playlist, songs: &[Song]) -> Result<()> {
@@ -295,19 +384,7 @@ impl MusicApi for TidalApi {
         }
 
         // 1. query playlist ETag
-        let url = format!("{}/v1/playlists/{}", Self::API_URL, playlist.id);
-        let params = json!({
-            "countryCode": self.country_code,
-        });
-        let res = self.client.get(&url).query(&params).send().await?;
-        let status = res.status();
-        let etag = res.headers().get("ETag").cloned();
-        let _: IgnoredAny =
-            debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
-        let etag = etag.ok_or(eyre!("No ETag in Tidal Response"))?;
-        if !status.is_success() {
-            return Err(eyre!("Invalid HTTP status: {}", status));
-        }
+        let etag = self.playlist_etag(&playlist.id).await?;
 
         // 2. add songs to playlist
         let url = format!("{}/v1/playlists/{}/items", Self::API_URL, playlist.id);
@@ -329,15 +406,52 @@ impl MusicApi for TidalApi {
             return Err(eyre!("Invalid HTTP status: {}", status));
         }
 
+        playlist.songs.extend(songs.iter().cloned());
         Ok(())
     }
 
     async fn remove_songs_from_playlist(
         &self,
-        _playlist: &mut Playlist,
-        _songs_ids: &[Song],
+        playlist: &mut Playlist,
+        songs: &[Song],
     ) -> Result<()> {
-        todo!()
+        // Items are removed by position, so read the server's current order
+        // rather than trusting `playlist.songs`.
+        let server_songs = self.get_playlist_songs(&playlist.id).await?;
+        let indices: Vec<String> = server_songs
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| songs.iter().any(|r| r.id == s.id))
+            .map(|(i, _)| i.to_string())
+            .collect();
+        playlist
+            .songs
+            .retain(|s| !songs.iter().any(|r| r.id == s.id));
+        if indices.is_empty() {
+            return Ok(());
+        }
+
+        let etag = self.playlist_etag(&playlist.id).await?;
+        let url = format!(
+            "{}/v1/playlists/{}/items/{}",
+            Self::API_URL,
+            playlist.id,
+            indices.join(",")
+        );
+        let res = self
+            .client
+            .delete(url)
+            .header("If-None-Match", etag)
+            .query(&[("countryCode", &self.country_code)])
+            .send()
+            .await?;
+        let status = res.status();
+        let _: IgnoredAny =
+            debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
+        if !status.is_success() {
+            return Err(eyre!("Invalid HTTP status: {}", status));
+        }
+        Ok(())
     }
 
     async fn delete_playlist(&self, playlist: Playlist) -> Result<()> {
@@ -424,6 +538,30 @@ impl MusicApi for TidalApi {
         Ok(())
     }
 
+    async fn remove_likes(&self, songs: &[Song]) -> Result<()> {
+        for song in songs {
+            let url = format!(
+                "{}/v1/users/{}/favorites/tracks/{}",
+                Self::API_URL,
+                self.user_id,
+                song.id
+            );
+            let res = self
+                .client
+                .delete(url)
+                .query(&[("countryCode", &self.country_code)])
+                .send()
+                .await?;
+            let status = res.status();
+            let _: IgnoredAny =
+                debug_response_json(&self.config, res, Self::RES_DEBUG_FILENAME).await?;
+            if !status.is_success() {
+                return Err(eyre!("Invalid HTTP status: {}", status));
+            }
+        }
+        Ok(())
+    }
+
     async fn get_likes(&self) -> Result<Vec<Song>> {
         let url = format!(
             "{}/v1/users/{}/favorites/tracks",
@@ -437,6 +575,8 @@ impl MusicApi for TidalApi {
             .paginated_request(&url, &HttpMethod::Get(&params), 1000)
             .await?;
         let songs: Songs = res.try_into()?;
-        Ok(songs.0)
+        let mut songs = songs.0;
+        self.fill_album_barcodes(&mut songs).await;
+        Ok(songs)
     }
 }

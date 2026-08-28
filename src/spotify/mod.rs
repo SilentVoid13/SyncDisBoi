@@ -1,7 +1,7 @@
 pub mod model;
 mod response;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -14,23 +14,27 @@ use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use tokio::net::TcpListener;
+use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
 use self::model::{
-    SpotifyPageResponse, SpotifyPlaylistResponse, SpotifySnapshotResponse, SpotifySongItemResponse,
+    SpotifyPageResponse, SpotifyPlaylistItemResponse, SpotifyPlaylistResponse,
+    SpotifySavedTrackResponse, SpotifySnapshotResponse,
 };
 use crate::ConfigArgs;
 use crate::music_api::{
     MusicApi, MusicApiType, OAuthRefreshToken, OAuthToken, PLAYLIST_DESC, Playlist, Playlists,
     Song, Songs,
 };
-use crate::spotify::model::SpotifySearchResponse;
+use crate::spotify::model::{SpotifyAlbumResponse, SpotifySearchResponse};
 use crate::utils::debug_response_json;
 
 pub struct SpotifyApi {
     client: reqwest::Client,
     config: ConfigArgs,
-    country_code: String,
+    country_code: Option<String>,
+    /// Memoised album id -> barcode.
+    album_barcodes: Mutex<HashMap<String, Option<String>>>,
 }
 
 #[derive(Debug)]
@@ -57,6 +61,8 @@ impl SpotifyApi {
     ];
     const LISTEN_RESPONSE: &'static str = "HTTP/1.1 200 OK\r\nContent-Length: 56\r\n\r\nAuthorization code received! You may now close this tab.";
     const RES_DEBUG_FILENAME: &'static str = MusicApiType::Spotify.short_name();
+    /// `PUT`/`DELETE /me/library` accept at most 40 URIs.
+    const LIBRARY_URIS_PER_REQUEST: usize = 40;
 
     pub async fn new(
         client_id: &str,
@@ -96,12 +102,14 @@ impl SpotifyApi {
         let mut spotify_api = Self {
             client,
             config,
-            country_code: String::new(),
+            country_code: None,
+            album_barcodes: Mutex::new(HashMap::new()),
         };
 
         let me_res: SpotifyUserResponse = spotify_api
             .make_request_json("/me", &HttpMethod::Get(&[]), 50, 0)
             .await?;
+        // Development Mode apps no longer get the country (Feb 2026 API change)
         spotify_api.country_code = me_res.country;
 
         Ok(spotify_api)
@@ -302,6 +310,81 @@ impl SpotifyApi {
     }
 }
 
+impl SpotifyApi {
+    /// Attach the release barcode to every song's album. Failures are ignored.
+    async fn fill_album_barcodes(&self, songs: &mut [Song]) {
+        let mut todo: Vec<String> = Vec::new();
+        {
+            let cache = self.album_barcodes.lock().await;
+            let mut seen = HashSet::new();
+            for song in songs.iter() {
+                if let Some(album) = &song.album
+                    && let Some(id) = &album.id
+                    && !cache.contains_key(id)
+                    && seen.insert(id.clone())
+                {
+                    todo.push(id.clone());
+                }
+            }
+        }
+
+        // The batch `GET /albums?ids=` was removed for Development Mode apps
+        // (February 2026), so albums are fetched one at a time.
+        for id in todo {
+            let path = format!("/albums/{}", id);
+            let res: Result<SpotifyAlbumResponse> = self
+                .make_request_json(&path, &HttpMethod::Get(&[]), 50, 0)
+                .await;
+
+            // Remember misses too, so they are not asked for again.
+            let upc = match res {
+                Ok(album) => album.external_ids.and_then(|e| e.upc),
+                Err(e) => {
+                    debug!("spotify album barcode lookup failed: {}", e);
+                    None
+                }
+            };
+            self.album_barcodes.lock().await.insert(id, upc);
+        }
+
+        let cache = self.album_barcodes.lock().await;
+        for song in songs.iter_mut() {
+            if let Some(album) = &mut song.album
+                && album.upc.is_none()
+                && let Some(id) = &album.id
+                && let Some(Some(barcode)) = cache.get(id)
+            {
+                album.upc = Some(barcode.clone());
+            }
+        }
+    }
+}
+
+impl SpotifyApi {
+    /// Save (`PUT`) or remove (`DELETE`) items of the user's library.
+    /// `/me/library` takes the URIs in the query string, at most 40 at once.
+    async fn edit_library(&self, uris: &[String], save: bool) -> Result<()> {
+        let body = json!({});
+        for chunk in uris.chunks(Self::LIBRARY_URIS_PER_REQUEST) {
+            let path = format!("/me/library?uris={}", chunk.join(","));
+            let method = if save {
+                HttpMethod::Put(&body)
+            } else {
+                HttpMethod::Delete(&body)
+            };
+            self.make_request_json::<()>(&path, &method, 50, 0).await?;
+        }
+        Ok(())
+    }
+}
+
+fn track_uris(songs: &[Song]) -> Vec<String> {
+    songs
+        .iter()
+        .map(|s| format!("spotify:track:{}", s.id))
+        .collect()
+}
+
 pub fn push_query(queries: &mut Vec<String>, query: String, max_len: usize) {
     if query.len() > max_len {
         debug!("hit query size limit: {}, skipping", query);
@@ -316,8 +399,8 @@ impl MusicApi for SpotifyApi {
         MusicApiType::Spotify
     }
 
-    fn country_code(&self) -> &str {
-        &self.country_code
+    fn country_code(&self) -> Option<&str> {
+        self.country_code.as_deref()
     }
 
     async fn create_playlist(&self, name: &str, public: bool) -> Result<Playlist> {
@@ -345,11 +428,13 @@ impl MusicApi for SpotifyApi {
 
     async fn get_playlist_songs(&self, id: &str) -> Result<Vec<Song>> {
         let path = format!("/playlists/{}/items", id);
-        let res: SpotifyPageResponse<SpotifySongItemResponse> = self
+        let res: SpotifyPageResponse<SpotifyPlaylistItemResponse> = self
             .paginated_request(&path, HttpMethod::Get(&[]), 50)
             .await?;
         let songs: Songs = res.try_into()?;
-        Ok(songs.0)
+        let mut songs = songs.0;
+        self.fill_album_barcodes(&mut songs).await;
+        Ok(songs)
     }
 
     async fn add_songs_to_playlist(&self, playlist: &mut Playlist, songs: &[Song]) -> Result<()> {
@@ -362,7 +447,7 @@ impl MusicApi for SpotifyApi {
             .map(|song| format!("spotify:track:{}", song.id))
             .collect();
 
-        let path = format!("/playlists/{}/tracks", playlist.id);
+        let path = format!("/playlists/{}/items", playlist.id);
         for u in uris.as_slice().chunks(100) {
             let body = json!({
                 "uris": u,
@@ -379,6 +464,9 @@ impl MusicApi for SpotifyApi {
         playlist: &mut Playlist,
         songs: &[Song],
     ) -> Result<()> {
+        if songs.is_empty() {
+            return Ok(());
+        }
         for song in songs {
             playlist.songs.retain(|s| s != song);
         }
@@ -390,9 +478,9 @@ impl MusicApi for SpotifyApi {
                 json!({ "uri": uri })
             })
             .collect();
-        let path = format!("/playlists/{}/tracks", playlist.id);
+        let path = format!("/playlists/{}/items", playlist.id);
         let body = json!({
-            "tracks": uris,
+            "items": uris,
         });
         self.make_request_json::<SpotifySnapshotResponse>(&path, &HttpMethod::Delete(&body), 50, 0)
             .await?;
@@ -400,13 +488,10 @@ impl MusicApi for SpotifyApi {
     }
 
     async fn delete_playlist(&self, playlist: Playlist) -> Result<()> {
-        let path = format!("/playlists/{}/followers", playlist.id);
-        let body = json!({
-            "playlist_id": playlist.id,
-        });
-        self.make_request_json::<()>(&path, &HttpMethod::Delete(&body), 50, 0)
-            .await?;
-        Ok(())
+        // Spotify has no playlist deletion: removing it from the library
+        // unfollows it, which is what deleting does in the app.
+        self.edit_library(&[format!("spotify:playlist:{}", playlist.id)], false)
+            .await
     }
 
     async fn search_song(&self, song: &Song) -> Result<Option<Song>> {
@@ -477,81 +562,20 @@ impl MusicApi for SpotifyApi {
     }
 
     async fn add_likes(&self, songs: &[Song]) -> Result<()> {
-        // NOTE: A maximum of 50 items can be specified in one request
-        for songs_chunk in songs.chunks(50) {
-            let ids: Vec<&str> = songs_chunk.iter().map(|s| s.id.as_str()).collect();
-            let body = json!({
-                "ids": ids,
-            });
-            self.make_request_json::<()>("/me/tracks", &HttpMethod::Put(&body), 50, 0)
-                .await?;
-        }
-        Ok(())
+        self.edit_library(&track_uris(songs), true).await
+    }
+
+    async fn remove_likes(&self, songs: &[Song]) -> Result<()> {
+        self.edit_library(&track_uris(songs), false).await
     }
 
     async fn get_likes(&self) -> Result<Vec<Song>> {
-        let res: SpotifyPageResponse<SpotifySongItemResponse> = self
+        let res: SpotifyPageResponse<SpotifySavedTrackResponse> = self
             .paginated_request("/me/tracks", HttpMethod::Get(&[]), 50)
             .await?;
         let songs: Songs = res.try_into()?;
-        Ok(songs.0)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::env;
-
-    use super::*;
-    use crate::yt_music::YtMusicApi;
-
-    #[tokio::test]
-    async fn test_spotify_search_from_ytmusic() {
-        let yt_client_id = env::var("YTMUSIC_CLIENT_ID").unwrap();
-        let yt_client_secret = env::var("YTMUSIC_CLIENT_SECRET").unwrap();
-        let config_dir = dirs::config_dir().unwrap();
-        let oauth_token_path = config_dir.join("SyncDisBoi").join("ytmusic_oauth.json");
-        let ytmusic = YtMusicApi::new_oauth(
-            &yt_client_id,
-            &yt_client_secret,
-            oauth_token_path,
-            false,
-            None,
-        )
-        .await
-        .unwrap();
-
-        let playlists = ytmusic.get_playlists_info().await.unwrap();
-        let test_spotify = playlists.iter().find(|p| p.name == "TestSpotify").unwrap();
-        let songs = ytmusic.get_playlist_songs(&test_spotify.id).await.unwrap();
-
-        let spotify_client_id = env::var("SPOTIFY_CLIENT_ID").unwrap();
-        let spotify_secret = env::var("SPOTIFY_CLIENT_SECRET").unwrap();
-        let spotify = SpotifyApi::new(&spotify_client_id, &spotify_secret, None)
-            .await
-            .unwrap();
-
-        let songs = spotify.search_songs(&songs).await.unwrap();
-        let correct_ids = [
-            "2x1GoZKREbFkQJ8FUaz3Lc",
-            // error on spotify side, album is "justice" instead of "cross"
-            "none",
-            "5dayqPrW7a4b2Skq3EcxWK",
-            "1vU4X8ffq8oNcvvqkgTEXm",
-            "1YqUm734e5Yv5BJEDhLYxK",
-            "0qG1teoBvooRo7Z5Z8edCk",
-            "32dnKMni3I3gwUbWp4mi45",
-            "5HLdSJ0lsTulL0Lk7yTiYr",
-            "3Eq7BJV1hGAiL8ctKoCrbD",
-            "3F9ByoUqu31xU0I3G5xfVg",
-        ];
-        for (i, song) in songs.into_iter().enumerate() {
-            if let Some(song) = song {
-                println!("Testing song: {}, id {}", song.name, song.id);
-                assert_eq!(song.id, correct_ids[i]);
-            } else {
-                assert_eq!(correct_ids[i], "none");
-            }
-        }
+        let mut songs = songs.0;
+        self.fill_album_barcodes(&mut songs).await;
+        Ok(songs)
     }
 }

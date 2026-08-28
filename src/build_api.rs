@@ -2,6 +2,7 @@ use std::path::Path;
 
 use async_trait::async_trait;
 use color_eyre::eyre::{Result, eyre};
+use sync_dis_boi::listenbrainz::ListenBrainzApi;
 use sync_dis_boi::music_api::DynMusicApi;
 use sync_dis_boi::spotify::SpotifyApi;
 use sync_dis_boi::tidal::TidalApi;
@@ -88,6 +89,9 @@ macro_rules! impl_build_api {
                             .await?,
                         )
                     }
+                    Self::ListenBrainz { token, api_url, .. } => Box::new(
+                        ListenBrainzApi::new(token, api_url, args.config.clone()).await?,
+                    ),
                     #[allow(unreachable_patterns)]
                     _ => return Err(eyre!("Invalid API type: {:?}", self)),
                 };
@@ -105,7 +109,10 @@ impl_build_api!(MusicPlatformDst);
 impl MusicPlatformSrc {
     pub fn get_dst(&self) -> &MusicPlatformDst {
         match self {
-            Self::YtMusic { dst, .. } | Self::Spotify { dst, .. } | Self::Tidal { dst, .. } => dst,
+            Self::YtMusic { dst, .. }
+            | Self::Spotify { dst, .. }
+            | Self::Tidal { dst, .. }
+            | Self::ListenBrainz { dst, .. } => dst,
             // `Merge` is a terminal file operation handled in `main` before any
             // destination is resolved, so this is never reached.
             Self::Merge { .. } => unreachable!("merge has no destination platform"),
