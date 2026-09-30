@@ -2,7 +2,7 @@
   description = "SyncDisBoi";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     fenix = {
       url = "github:nix-community/fenix";
@@ -61,7 +61,8 @@
               buildInputs = fnBuildInputs arch_pkgs;
             };
 
-        fnBuildInputs = pkgs: with pkgs; [ openssl ];
+        # reqwest uses SChannel on Windows, so OpenSSL is only needed elsewhere
+        fnBuildInputs = pkgs: with pkgs; lib.optionals (!stdenv.hostPlatform.isWindows) [ openssl ];
       in
       rec {
         defaultPackage = buildPkg pkgs;
