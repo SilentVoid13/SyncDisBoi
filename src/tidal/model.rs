@@ -116,6 +116,8 @@ pub struct TidalMediaAttributes {
     pub duration: Option<String>,
     pub barcode_id: Option<String>,
     pub popularity: Option<f32>,
+    /// e.g. `["STREAM", "DJ"]`, absent for tracks that can't be played
+    pub availability: Option<Vec<String>>,
 
     // user attributes
     pub username: Option<String>,

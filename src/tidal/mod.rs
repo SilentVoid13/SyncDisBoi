@@ -476,9 +476,18 @@ impl MusicApi for TidalApi {
                 "include": "albums,artists",
                 "filter[isrc]": isrc.to_uppercase(),
             });
-            let res: TidalMediaResponse = self
+            let mut res: TidalMediaResponse = self
                 .make_request_json(&url, &HttpMethod::Get(&params), Some((1, 0)))
                 .await?;
+            // The ISRC filter also returns unstreamable tracks. Adding one to a
+            // playlist silently stores its replacement track instead, so the song
+            // is never seen as present and gets re-added on every sync.
+            res.data.retain(|d| {
+                d.attributes
+                    .availability
+                    .as_ref()
+                    .is_some_and(|a| a.iter().any(|v| v == "STREAM"))
+            });
             if res.data.is_empty() {
                 return Ok(None);
             }

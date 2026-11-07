@@ -1,5 +1,8 @@
 set dotenv-load
 
+# personal, gitignored recipes
+import? 'local.just'
+
 d_sp2yt: d_clean
     cargo run -- --debug -l debug --sync-likes --like-all spotify yt-music
 d_sp2ti: d_clean
@@ -20,6 +23,19 @@ d_ti2export: d_clean
     cargo run -- --debug -l debug tidal export -o tidal.json
 d_sp2import: d_clean
     cargo run -- --debug -l debug spotify import -i spotify.json
+d_sp2lb: d_clean
+    cargo run -- --debug -l debug spotify listenbrainz
+d_ti2lb: d_clean
+    cargo run -- --debug -l debug tidal listenbrainz
+d_lb2export: d_clean
+    cargo run -- --debug -l debug listenbrainz export -o listenbrainz.json
+d_lb2import: d_clean
+    cargo run -- --debug -l debug listenbrainz import -i canon.json
 d_clean:
     rm -rf debug
-export_all: d_sp2export d_yt2export d_ti2export
+test:
+    cargo test
+# live suite on the real accounts; filter e.g. `tidal::`, `cross::`, `spotify::search`
+test-live filter="":
+    cargo test --test live -- --ignored {{filter}}
+export_all: d_sp2export d_yt2export d_ti2export d_lb2export
